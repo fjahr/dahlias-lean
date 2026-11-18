@@ -75,6 +75,13 @@ theorem run_rel {τ : Type} (h : (q : Q) → σ → R q × σ) (h' : (q : Q) →
     simp only [run_ask, h1]
     exact ih _ _ _ h2
 
+/-- A property of the state that every answer preserves holds at the end. -/
+theorem run_inv (h : (q : Q) → σ → R q × σ) (I : σ → Prop)
+    (hstep : ∀ q s, I s → I (h q s).2) (t : Alg Q R α) (s : σ) (hs : I s) : I (run h t s).2 := by
+  induction t generalizing s with
+  | done a => exact hs
+  | ask q f ih => exact ih _ _ (hstep q s hs)
+
 variable {Q' : Type} {R' : Q' → Type}
 
 /-- Run with a stateful handler that answers each query by an algorithm for

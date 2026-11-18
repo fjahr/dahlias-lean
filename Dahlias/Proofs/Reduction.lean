@@ -107,14 +107,16 @@ variable (P : E) (U : ℕ → PubNonce E)
 def CloseRec.point (r : CloseRec n E X M) : E :=
   dlogPoint C (U r.k) (r.τ.pk C P) r.Rb r.c
 
+/-- The coefficient list of length `L` with the given entries `(index, coefficient)`. -/
+def coefVec (L : ℕ) (l : List (ℕ × ZMod n)) : List (ZMod n) :=
+  (List.range L).map fun j => ((l.filter fun p => decide (p.1 = j)).map (·.2)).sum
+
 /-- The representation of the query point of a `Sign` in the challenges
 `P, U₀.1, U₀.2, U₁.1, …`. -/
 def dlogRep (k : ℕ) (τ : Tweak n) (Rb : E × ZMod n) (c : ZMod n) : ZMod n × List (ZMod n) :=
   let ε : ZMod n := if C.hasEvenY (τ.pk C P) then 1 else -1
   let e : ZMod n := if C.hasEvenY Rb.1 then 1 else -1
-  (c * ε * τ.1, (List.range (2 * qs + 1)).map fun i =>
-    if i = 0 then c * ε * τ.2 else if i = 2 * k + 1 then e else if i = 2 * k + 2 then e * Rb.2
-    else 0)
+  (c * ε * τ.1, coefVec (2 * qs + 1) [(0, c * ε * τ.2), (2 * k + 1, e), (2 * k + 2, e * Rb.2)])
 
 /-- The honest signer as the reduction simulates it. -/
 def simChallenger (T : SigIn N X M → ZMod n) :
@@ -172,15 +174,13 @@ def CloseRec.w (r : CloseRec n E X M) (x : ZMod n) : ZMod n :=
 nonces as a function of the secret key. -/
 def solveSession (k : ℕ) (cache : List (CloseRec n E X M)) :
     Alg (OmdlQ n) (OmdlR E) (ZMod n → ZMod n × ZMod n) :=
-  let unit (i : ℕ) (v : ZMod n) : List (ZMod n) :=
-    (List.range (2 * qs + 1)).map fun j => if j = i then v else 0
   match cache.filter fun r => decide (r.k = k) with
   | [] =>
-    .ask (.dlog 0 (unit (2 * k + 1) 1)) fun (v₁ : ZMod n) =>
-      .ask (.dlog 0 (unit (2 * k + 2) 1)) fun (v₂ : ZMod n) => .done fun _ => (v₁, v₂)
+    .ask (.dlog 0 (coefVec (2 * qs + 1) [(2 * k + 1, 1)])) fun (v₁ : ZMod n) =>
+      .ask (.dlog 0 (coefVec (2 * qs + 1) [(2 * k + 2, 1)])) fun (v₂ : ZMod n) =>
+        .done fun _ => (v₁, v₂)
   | [a] =>
-    .ask (.dlog 0 ((List.range (2 * qs + 1)).map fun j =>
-        if j = 2 * k + 1 then 1 else if j = 2 * k + 2 then a.Rb.2 + 1 else 0))
+    .ask (.dlog 0 (coefVec (2 * qs + 1) [(2 * k + 1, 1), (2 * k + 2, a.Rb.2 + 1)]))
         fun (v : ZMod n) =>
       .done fun x => (a.w C P x - a.Rb.2 * (v - a.w C P x), v - a.w C P x)
   | a :: a' :: _ =>
