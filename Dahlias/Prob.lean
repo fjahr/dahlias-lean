@@ -55,6 +55,19 @@ theorem prob_le_add {p q r : Ω → Prop} (h : ∀ ω, p ω → q ω ∨ r ω) :
     exact h ω hω
   exact_mod_cast (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
 
+/-- The union bound for finitely many events. -/
+theorem prob_exists_le (q : ℕ) (p : ℕ → Ω → Prop) :
+    prob (fun ω => ∃ j, j < q ∧ p j ω) ≤ ∑ j ∈ Finset.range q, prob (p j) := by
+  induction q with
+  | zero => simp [prob]
+  | succ q ih =>
+    rw [Finset.sum_range_succ]
+    refine (prob_le_add (q := fun ω => ∃ j, j < q ∧ p j ω) (r := p q) ?_).trans (by gcongr)
+    rintro ω ⟨j, hj, hp⟩
+    rcases Nat.lt_succ_iff_lt_or_eq.mp hj with h | rfl
+    · exact Or.inl ⟨j, h, hp⟩
+    · exact Or.inr hp
+
 /-- Relabelling the samples does not change a probability. -/
 theorem prob_equiv (e : Ω ≃ Ω') (p : Ω' → Prop) : prob (fun ω => p (e ω)) = prob p := by
   classical

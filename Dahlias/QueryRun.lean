@@ -114,6 +114,49 @@ theorem flog_update (T : D → S) (x : D) (s : S) {l : List D} (hl : l.Nodup) (h
         · exact hxl
         · simpa using ⟨hxl, Ne.symm hd⟩
 
+/-- Changing the value at the `j`-th fresh query leaves the first `j + 1`
+fresh queries as they are. -/
+theorem flog_update_take (T : D → S) (x : D) (s : S) {l : List D} (hl : l.Nodup) (hxl : x ∉ l)
+    (t : QTree D S α) {j : ℕ} (hj : (flog T l t)[j]? = some x) :
+    (flog (update T x s) l t).take (j + 1) = (flog T l t).take (j + 1) := by
+  induction t generalizing l with
+  | done a => exact absurd (List.mem_of_getElem? hj) hxl
+  | ask d f ih =>
+    by_cases hd : d = x
+    · subst hd
+      simp only [flog, hxl, ↓reduceIte] at hj ⊢
+      have hat : ∀ (T' : D → S) (u : QTree D S α), (flog T' (l ++ [d]) u)[l.length]? = some d := by
+        intro T' u
+        obtain ⟨r, hr⟩ := prefix_flog T' (l ++ [d]) u
+        rw [← hr]
+        simp
+      have hnd := nodup_flog T (nodup_snoc hl hxl) (f (T d))
+      have hjl : j = l.length := by
+        have h1 := hat T (f (T d))
+        obtain ⟨hj1, hj2⟩ := List.getElem?_eq_some_iff.mp hj
+        obtain ⟨hl1, hl2⟩ := List.getElem?_eq_some_iff.mp h1
+        exact (List.Nodup.getElem_inj_iff hnd).mp (hj2.trans hl2.symm)
+      have htake : ∀ (T' : D → S) (u : QTree D S α),
+          (flog T' (l ++ [d]) u).take (j + 1) = l ++ [d] := by
+        intro T' u
+        have := List.prefix_iff_eq_take.mp (prefix_flog T' (l ++ [d]) u)
+        rw [hjl]
+        simpa using this.symm
+      rw [htake, htake]
+    · simp only [flog, update_of_ne hd] at hj ⊢
+      refine ih (T d) ?_ ?_ hj
+      · split_ifs with h
+        · exact hl
+        · exact nodup_snoc hl h
+      · split_ifs with h
+        · exact hxl
+        · simpa using ⟨hxl, Ne.symm hd⟩
+
+theorem fresh_update_take (T : D → S) (x : D) (s : S) (t : QTree D S α) {j : ℕ}
+    (hj : (fresh T t)[j]? = some x) :
+    (fresh (update T x s) t).take (j + 1) = (fresh T t).take (j + 1) :=
+  flog_update_take T x s List.nodup_nil (by simp) t hj
+
 theorem fresh_update (T : D → S) (x : D) (s : S) (t : QTree D S α) {j : ℕ}
     (hj : (fresh T t)[j]? = some x) : (fresh (update T x s) t)[j]? = some x :=
   flog_update T x s List.nodup_nil (by simp) t hj
@@ -157,6 +200,33 @@ theorem length_flog_ask_done (T : D → S) (l : List D) (d : D) (g : S → α) :
     (flog T l (.ask d fun c => .done (g c))).length ≤ l.length + 1 := by
   simp only [flog]
   split_ifs <;> simp
+
+/-- Query every point of a list. -/
+def queryAll : List D → QTree D S Unit
+  | [] => .done ()
+  | d :: l => .ask d fun _ => queryAll l
+
+omit [DecidableEq D] in
+theorem eval_queryAll (T : D → S) (l : List D) : eval T (queryAll l : QTree D S Unit) = () := rfl
+
+theorem length_flog_queryAll (T : D → S) (l l' : List D) :
+    (flog T l (queryAll l' : QTree D S Unit)).length ≤ l.length + l'.length := by
+  induction l' generalizing l with
+  | nil => simp [queryAll, flog]
+  | cons d l' ih =>
+    simp only [queryAll, flog]
+    refine (ih _).trans ?_
+    split_ifs <;> (simp; try omega)
+
+theorem subset_flog_queryAll (T : D → S) (l l' : List D) :
+    l' ⊆ flog T l (queryAll l' : QTree D S Unit) := by
+  induction l' generalizing l with
+  | nil => simp
+  | cons d l' ih =>
+    intro y hy
+    rcases List.mem_cons.mp hy with rfl | hy
+    · exact mem_flog_ask T l y _
+    · exact ih _ hy
 
 end QTree
 

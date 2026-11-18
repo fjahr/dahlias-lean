@@ -10,7 +10,8 @@ About 600 lines decide whether the results mean anything.
 2. `Dahlias/Security.lean`, all of it: the unforgeability game, the AOMDL game, and the two places where the game differs from the paper's.
 3. `Dahlias/Alg.lean`, the definitions `Alg`, `bind` and `run`, and `Dahlias/Prob.lean`, the definition `prob`.
 4. `Dahlias/Unforgeability.lean`, the statement of `unforgeable` and the definition `collisionAdvantage`.
-5. `Dahlias/Proofs/Reduction.lean`, the types of `reduction` and `collider`.
+5. `Dahlias/Binding.lean`, the header, `bindExperiment` and the statement of `strongly_binding`.
+6. `Dahlias/Proofs/Reduction.lean`, the types of `reduction` and `collider`.
 
 taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A full review reads those definitions too.
 
@@ -31,6 +32,8 @@ taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A ful
 
 **Is the theorem vacuous?** `Dahlias/Examples.lean` has a forger that satisfies `HashBound` and wins with positive probability. `Dahlias/Secp256k1.lean` instantiates the theorem for secp256k1.
 
+**Is the binding game the paper's?** `bindExperiment` is the game of Fig. 11 with the random oracle of the unforgeability game: the adversary outputs two lists and one signature and wins if the lists differ and the signature verifies for both. The theorem counts the adversary's own oracle queries; the `2N` in the bound are the verifier's queries. It holds for groups of prime order.
+
 **What does the bound say?** With `q = qh + qs + 1`, the statement `adv * (adv / q - 1 / n) ≤ omdl + coll` gives `adv ≤ sqrt (q * (omdl + coll)) + q / n`. This is the bound of the paper's Theorem 2 up to the count of queries. The square root is the loss of the forking lemma.
 
 ## What the theorem does not say
@@ -39,7 +42,7 @@ taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A ful
 - The game is for lists of at most `N` entries, with `N < n`.
 - Public keys are x-coordinates in the field and messages come from a finite type. The byte encodings are not part of the security statement. `Dahlias/Vectors.lean` runs the test vectors against the byte-level algorithms, `Dahlias/BytesCorrectness.lean` proves their correctness, and `scripts/fuzz.py` compares them with the Python reference and with libsecp256k1.
 - Nonces are uniform. BIP 459's `NonceGen` derives them from a random value with a tagged hash; that step is not modelled.
-- Strong binding (Theorem 3 of the paper) is not formalized.
+- `secp256k1_strongly_binding` takes as a hypothesis that secp256k1 has prime order. The pinned dependencies do not prove this fact.
 
 ## Machine checks
 

@@ -11,6 +11,7 @@ import Dahlias.QueryRun
 import Dahlias.Fork
 import Dahlias.Security
 import Dahlias.Unforgeability
+import Dahlias.Binding
 import Dahlias.Tweaks
 import Dahlias.Secp256k1
 import Dahlias.Examples
@@ -164,6 +165,21 @@ info: 'Dahlias.Security.secp256k1_unforgeable' depends on axioms: [propext,
 /-- info: 'Dahlias.Security.guesser_advantage_pos' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Dahlias.Security.guesser_advantage_pos
+
+/-! ## Strong binding -/
+
+/-- info: 'Dahlias.Security.strongly_binding' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.strongly_binding
+
+/--
+info: 'Dahlias.Security.secp256k1_strongly_binding' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Dahlias.Security.secp256k1_strongly_binding
 
 /-! ## Attacks on misuse and on a weakened `Sign` -/
 

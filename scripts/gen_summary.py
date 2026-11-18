@@ -31,6 +31,8 @@ SECTIONS = [
     ("Unforgeability",
      ["Dahlias.Security.unforgeable", "Dahlias.Security.secp256k1_unforgeable",
       "Dahlias.Security.tweakSK_affine", "Dahlias.Security.guesser_advantage_pos"]),
+    ("Strong binding",
+     ["Dahlias.Security.strongly_binding", "Dahlias.Security.secp256k1_strongly_binding"]),
     ("Attacks on misuse and on a weakened `Sign`",
      ["Dahlias.Security.evenScalar_of_nonce_reuse",
       "Dahlias.Security.evenScalar_of_three_sessions", "Dahlias.Security.msgSwap_wins"]),

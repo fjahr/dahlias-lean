@@ -2,7 +2,7 @@
 
 Lean 4 proofs about [BIP 459](https://github.com/bitcoin/bips/blob/master/bip-0459.mediawiki), DahLIAS fully aggregated signatures for secp256k1.
 
-The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper](https://eprint.iacr.org/2025/692) for the algorithms of BIP 459: the scheme is unforgeable in the concurrent setting with key tweaking, under the algebraic one-more discrete logarithm assumption (AOMDL), with the challenge hash as a random oracle and a collision resistant nonce coefficient hash.
+The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper](https://eprint.iacr.org/2025/692) for the algorithms of BIP 459: the scheme is unforgeable in the concurrent setting with key tweaking, under the algebraic one-more discrete logarithm assumption (AOMDL), with the challenge hash as a random oracle and a collision resistant nonce coefficient hash. Theorem 3 of the paper, strong binding, is proven as well.
 
 `REVIEW.md` says what to read to check that the statements mean what they should.
 
@@ -11,6 +11,7 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 | Theorem | File | Statement |
 | --- | --- | --- |
 | `unforgeable`, `secp256k1_unforgeable` | `Dahlias/Unforgeability.lean`, `Dahlias/Secp256k1.lean` | A forger with success probability `adv`, at most `qh` random oracle queries and `qs` signing sessions gives an AOMDL adversary and a collision finder with `adv * (adv / (qh + qs + 1) - 1 / n) ≤ omdl + coll`. |
+| `strongly_binding`, `secp256k1_strongly_binding` | `Dahlias/Binding.lean`, `Dahlias/Secp256k1.lean` | An adversary with at most `qh` random oracle queries finds a signature that is valid for two different lists of at most `N` entries with probability at most `(qh + 2N)² / n`. |
 | `localFork_prob` | `Dahlias/LocalFork.lean`, `Dahlias/Fork.lean` | The local forking lemma of Bellare, Dai and Li. |
 | `verify_honest` | `Dahlias/Correctness.lean`, `Dahlias/BytesCorrectness.lean` | An honest session produces a signature that verifies, for the model and for the byte-level algorithms. |
 | `verify_sigAgg_of_partialSigVerify` | `Dahlias/Correctness.lean` | Partial signatures that pass `PartialSigVerify` aggregate to a valid signature. |

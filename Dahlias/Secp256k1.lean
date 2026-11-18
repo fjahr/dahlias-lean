@@ -1,10 +1,12 @@
 import Dahlias.Unforgeability
+import Dahlias.Binding
 import Taproot.Secp256k1
 
 /-!
-# Unforgeability of BIP 459 on secp256k1
+# BIP 459 on secp256k1
 
-`secp256k1_unforgeable` is `unforgeable` for the curve secp256k1, with public
+`secp256k1_unforgeable` and `secp256k1_strongly_binding` are `unforgeable`
+and `strongly_binding` for the curve secp256k1, with public
 keys and the `R` of a signature as x-coordinates in the field (their 32-byte
 encoding is injective) and messages from any finite type, such as the
 32-byte arrays of BIP 459.
@@ -40,5 +42,17 @@ theorem secp256k1_unforgeable {M Coins : Type} [Fintype M] [DecidableEq M] [Fint
       omdlAdvantage secp256k1 (2 * qs + 1) (reduction secp256k1 nonceCoef N qs A) +
         collisionAdvantage secp256k1 nonceCoef N qs A :=
   unforgeable secp256k1 nonceCoef N qs A hN qh hA
+
+/-- **BIP 459 on secp256k1 is strongly binding.** The hypothesis says that
+secp256k1 has prime order `n`: every point `P` has `n⋅P = 0`. That is a known
+fact about the curve, but the libraries this project depends on do not prove
+it (it needs a count of the points), so it stays a hypothesis here. -/
+theorem secp256k1_strongly_binding {M Coins : Type} [Fintype M] [DecidableEq M] [Fintype Coins]
+    (hE : Curve.PrimeOrder n Point)
+    (nonceCoef : Point → Point → List (F × M × Point) → ZMod n) (N : ℕ)
+    (A : BindAdversary n N F M Coins) (hN : N < n) (qh : ℕ)
+    (hA : ∀ coins T, (QTree.fresh T (A coins)).length ≤ qh) :
+    prob (bindExperiment secp256k1 nonceCoef N A) ≤ ((qh + 2 * N : ℕ) : ℝ) ^ 2 / n :=
+  strongly_binding secp256k1 nonceCoef N A hE hN qh hA
 
 end Dahlias.Security

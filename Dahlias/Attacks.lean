@@ -199,7 +199,8 @@ theorem msgSwap_wins (hN : 1 ≤ N) (hqs : 0 < qs) {m m' : M} (hm : m ≠ m') (x
       some (signPost C.ops (r₁, r₂) (x : ZMod n) (R, b)
         (T (⟨[(C.x P, m')], hL⟩, C.x R, (C.x P, m')))) := by
     unfold signNoMsgCheck
-    have h0 : ¬((r₁, r₂).1 = 0 ∨ (r₁, r₂).2 = 0 ∨ Tweak.sk ((0, 1) : Tweak n) (x : ZMod n) = 0) := by
+    have h0 : ¬((r₁, r₂).1 = 0 ∨ (r₁, r₂).2 = 0 ∨
+        Tweak.sk ((0, 1) : Tweak n) (x : ZMod n) = 0) := by
       simp [h1, h2, hsk, hx]
     rw [if_neg h0]
     simp only [ops_mulG, hmi, List.getElem?_cons_zero, ops_x, hsk, ← hP, ↓reduceIte, hsv,
