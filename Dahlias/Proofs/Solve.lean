@@ -9,6 +9,7 @@ nonces of every session as a function of the secret key.
 -/
 
 set_option linter.unusedSectionVars false
+set_option linter.flexible false
 
 namespace Dahlias.Security
 

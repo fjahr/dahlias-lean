@@ -34,6 +34,14 @@ theorem prob_mono {p q : Ω → Prop} (h : ∀ ω, p ω → q ω) : prob p ≤ p
   gcongr
   exact h _
 
+theorem prob_pos {p : Ω → Prop} (h : ∃ ω, p ω) : 0 < prob p := by
+  classical
+  obtain ⟨ω, hω⟩ := h
+  have : Nonempty Ω := ⟨ω⟩
+  unfold prob
+  refine div_pos (Nat.cast_pos.mpr (Finset.card_pos.mpr ⟨ω, by simp [hω]⟩)) ?_
+  exact Nat.cast_pos.mpr Fintype.card_pos
+
 /-- The union bound. -/
 theorem prob_le_add {p q r : Ω → Prop} (h : ∀ ω, p ω → q ω ∨ r ω) :
     prob p ≤ prob q + prob r := by

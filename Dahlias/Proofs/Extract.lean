@@ -69,7 +69,8 @@ theorem sum_map_sub' {α : Type} (L : List α) (f g : α → E) :
 
 /-- A sum over a list with one distinguished value. -/
 theorem sum_map_ite_eq_count {α : Type} [DecidableEq α] (L : List α) (e : α) (A : E) :
-    (L.map fun a => if a = e then A else 0).sum = (L.filter fun a => decide (a = e)).length • A := by
+    (L.map fun a => if a = e then A else 0).sum =
+      (L.filter fun a => decide (a = e)).length • A := by
   induction L with
   | nil => simp
   | cons a L ih =>
