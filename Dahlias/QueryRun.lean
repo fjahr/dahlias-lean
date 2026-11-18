@@ -123,6 +123,41 @@ theorem eval_update (T : D → S) (x : D) (s : S) (t : QTree D S α) (hx : x ∉
     eval (update T x s) t = eval T t :=
   (eval_flog_update T x s [] t hx).1
 
+/-! ## Sequential composition -/
+
+variable {β : Type}
+
+omit [DecidableEq D] in
+theorem eval_bind (T : D → S) (t : QTree D S α) (g : α → QTree D S β) :
+    eval T (t >>= g) = eval T (g (eval T t)) := by
+  induction t with
+  | done a => rfl
+  | ask d f ih => exact ih (T d)
+
+theorem flog_bind (T : D → S) (l : List D) (t : QTree D S α) (g : α → QTree D S β) :
+    flog T l (t >>= g) = flog T (flog T l t) (g (eval T t)) := by
+  induction t generalizing l with
+  | done a => rfl
+  | ask d f ih => exact ih (T d) _
+
+theorem fresh_bind (T : D → S) (t : QTree D S α) (g : α → QTree D S β) :
+    fresh T (t >>= g) = flog T (fresh T t) (g (eval T t)) :=
+  flog_bind T [] t g
+
+/-- A queried point is among the fresh queries. -/
+theorem mem_flog_ask (T : D → S) (l : List D) (d : D) (f : S → QTree D S α) :
+    d ∈ flog T l (.ask d f) := by
+  refine (prefix_flog T _ (f (T d))).subset ?_
+  split_ifs with h
+  · exact h
+  · simp
+
+/-- The number of fresh queries of a single query followed by an answer. -/
+theorem length_flog_ask_done (T : D → S) (l : List D) (d : D) (g : S → α) :
+    (flog T l (.ask d fun c => .done (g c))).length ≤ l.length + 1 := by
+  simp only [flog]
+  split_ifs <;> simp
+
 end QTree
 
 end Dahlias
