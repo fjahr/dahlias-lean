@@ -14,4 +14,5 @@ import Dahlias.Unforgeability
 import Dahlias.Tweaks
 import Dahlias.Secp256k1
 import Dahlias.Examples
+import Dahlias.Attacks
 import Dahlias.Summary
