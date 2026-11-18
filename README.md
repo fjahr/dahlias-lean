@@ -19,6 +19,7 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 | `verify_sigAgg_of_partialSigVerify` | `Dahlias/Correctness.lean` | Partial signatures that pass `PartialSigVerify` aggregate to a valid signature. |
 | `tweakPK_mulG`, `tweakSK_affine` | `Dahlias/Correctness.lean`, `Dahlias/Tweaks.lean` | `TweakSK` and `TweakPK` agree, and BIP 459's tweaks are tweaks of the security game. |
 | `evenScalar_of_nonce_reuse`, `evenScalar_of_three_sessions`, `msgSwap_wins` | `Dahlias/Attacks.lean` | Reusing a secret nonce reveals the secret key, and without the message check in `Sign` a coordinator can make the signer sign any message. |
+| `ros_bits`, `ros_forgery` | `Dahlias/Ros.lean` | The ROS attack: if `Sign` only checked that the combination of public key, message and `R2` is unique, `ℓ ≥ log₂ n` concurrent sessions would give a forgery. |
 | test vectors | `Dahlias/Vectors.lean` | All 60 rows of the seven vector files of `bip-0459/vectors`. |
 
 `Dahlias/Summary.lean` prints the axioms of every result. The theorems use Lean's three standard axioms. The test vectors and the statements about secp256k1 also use compiled evaluation (`native_decide`).

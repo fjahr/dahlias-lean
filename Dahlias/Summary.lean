@@ -18,6 +18,7 @@ import Dahlias.Secp256k1
 import Dahlias.BytesSecurity
 import Dahlias.Examples
 import Dahlias.Attacks
+import Dahlias.Ros
 
 /-!
 # Main results and their axioms
@@ -247,3 +248,11 @@ info: 'Dahlias.Security.sign_val' depends on axioms: [propext,
 /-- info: 'Dahlias.Security.msgSwap_wins' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Dahlias.Security.msgSwap_wins
+
+/-- info: 'Dahlias.Security.ros_bits' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.ros_bits
+
+/-- info: 'Dahlias.Security.ros_forgery' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.ros_forgery

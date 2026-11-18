@@ -40,7 +40,8 @@ SECTIONS = [
       "Dahlias.Security.verify_val", "Dahlias.Security.sign_val"]),
     ("Attacks on misuse and on a weakened `Sign`",
      ["Dahlias.Security.evenScalar_of_nonce_reuse",
-      "Dahlias.Security.evenScalar_of_three_sessions", "Dahlias.Security.msgSwap_wins"]),
+      "Dahlias.Security.evenScalar_of_three_sessions", "Dahlias.Security.msgSwap_wins",
+      "Dahlias.Security.ros_bits", "Dahlias.Security.ros_forgery"]),
 ]
 
 HEADER = '''
