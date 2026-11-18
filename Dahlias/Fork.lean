@@ -15,7 +15,7 @@ namespace Dahlias.QTree
 
 open Finset Function LocalFork
 
-variable {D S α : Type*} [Fintype D] [DecidableEq D] [Fintype S] [DecidableEq S]
+variable {D S α : Type} [Fintype D] [DecidableEq D] [Fintype S] [DecidableEq S]
   (t : QTree D S α) (sel : α → Option D)
 
 /-- The algorithm accepts on `T`: its output selects one of its queries. -/

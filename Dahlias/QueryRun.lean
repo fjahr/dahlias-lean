@@ -1,9 +1,9 @@
-import Mathlib
+import Dahlias.Alg
 
 /-!
 # Deterministic algorithms that query a function
 
-A `QTree D S α` is a deterministic algorithm that adaptively queries a
+A `QTree D S α` is a deterministic algorithm (`Alg`) that adaptively queries a
 function `D → S` and returns a value in `α`. `eval T t` runs it on the function
 `T`, and `fresh T t` lists the points it queries, in order and without
 repetitions.
@@ -16,26 +16,24 @@ local forking lemma (`Dahlias.LocalFork`) asks of the query points.
 namespace Dahlias
 
 /-- A deterministic algorithm with adaptive queries to a function `D → S`. -/
-inductive QTree (D S α : Type*) where
-  | done : α → QTree D S α
-  | ask : D → (S → QTree D S α) → QTree D S α
+abbrev QTree (D S α : Type) := Alg D (fun _ => S) α
 
 namespace QTree
 
 open Function
 
-variable {D S α : Type*} [DecidableEq D]
+variable {D S α : Type} [DecidableEq D]
 
 /-- The output on the function `T`. -/
 def eval (T : D → S) : QTree D S α → α
-  | done a => a
-  | ask d f => eval T (f (T d))
+  | .done a => a
+  | .ask d f => eval T (f (T d))
 
 /-- The fresh queries on the function `T`, appended to the points `l` that
 count as queried already. -/
 def flog (T : D → S) : List D → QTree D S α → List D
-  | l, done _ => l
-  | l, ask d f => flog T (if d ∈ l then l else l ++ [d]) (f (T d))
+  | l, .done _ => l
+  | l, .ask d f => flog T (if d ∈ l then l else l ++ [d]) (f (T d))
 
 /-- The points queried on the function `T`, in order, each once. -/
 def fresh (T : D → S) (t : QTree D S α) : List D := flog T [] t
