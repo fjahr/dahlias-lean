@@ -100,7 +100,7 @@ cmake --build build
 build/bin/exhaustive_tests
 ```
 
-The test was run on the group of order 13, where it adds about ten seconds. It has code for the group of order 199 that does less work per session, but that path has not been run.
+The test passes on the groups of order 13 and 199. On order 13 the whole exhaustive suite takes about 13 seconds with it. On order 199 the new test alone takes about 8 seconds; there it tries all secret nonces of one signer and all pairs of second nonces of two signers, with random keys and first nonces. The order is a compile-time constant of `src/tests_exhaustive.c` (`-DEXHAUSTIVE_TEST_ORDER=199` for that file only), and the rest of the suite is slow on that group.
 
 Five mutations of the expected values (ignoring a duplicate `R2`, an infinite aggregate nonce or an infinite `R`, the sign of `R`, and accepting a second `s`) each make the test fail.
 
