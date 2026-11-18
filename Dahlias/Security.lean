@@ -1,5 +1,6 @@
 import Dahlias.Alg
 import Dahlias.Basic
+import Dahlias.Prob
 
 /-!
 # Security definitions for BIP 459
@@ -13,7 +14,7 @@ trust about the security theorem is in this file and in `Dahlias.Basic`.
 * **Algorithms.** Adversaries are deterministic oracle algorithms (`Alg`) that
   take coins from a finite type. An experiment is a predicate on a finite
   sample, and its probability is the fraction of samples that satisfy it
-  (`prob`). There is no notion of running time; the theorems bound numbers of
+  (`prob`, in `Dahlias.Prob`). There is no notion of running time; the theorems bound numbers of
   queries.
 * **Hash functions.** `hash_BIP0459/sig` is a random oracle: a uniformly
   random table `T` on the inputs `(L, r, (pk, m))` with `L` of at most `N`
@@ -63,13 +64,6 @@ session open and records nothing, which gives the adversary more freedom.
 namespace Dahlias.Security
 
 open Taproot
-
-/-! ## Probability on a finite sample space -/
-
-open Classical in
-/-- The fraction of samples that satisfy `p`. -/
-noncomputable def prob {Ω : Type} [Fintype Ω] (p : Ω → Prop) : ℝ :=
-  ((Finset.univ.filter p).card : ℝ) / Fintype.card Ω
 
 variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E] [DecidableEq X]
   [DecidableEq M]

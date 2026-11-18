@@ -1,5 +1,6 @@
 import Dahlias.LocalFork
 import Dahlias.QueryRun
+import Dahlias.Prob
 
 /-!
 # The local forking lemma for query algorithms
@@ -86,5 +87,62 @@ theorem localFork {q : ℕ} (hq : ∀ T, (fresh T t).length ≤ q) :
   rw [hacc] at h
   refine h.trans ?_
   gcongr
+
+/-- **The local forking lemma for a family of query algorithms**, as
+probabilities. The sample is an index `ω`, a function `T` and a new value
+`s`, all uniform; `ω` stands for everything else that is random. With `acc`
+the probability of accepting, `acc * (acc / q - 1 / |S|) ≤ fork`. -/
+theorem localFork_prob {Ω : Type} [Fintype Ω] [Nonempty S] {q : ℕ} (hq0 : 0 < q)
+    (t : Ω → QTree D S α) (sel : Ω → (D → S) → α → Option D)
+    (hq : ∀ ω T, (fresh T (t ω)).length ≤ q) :
+    let acc := prob fun p : Ω × (D → S) => Accepts (t p.1) (sel p.1) p.2
+    acc * (acc / q - 1 / Fintype.card S) ≤
+      prob fun p : (Ω × (D → S)) × S => Forks (t p.1.1) (sel p.1.1) p.1.2 p.2 := by
+  classical
+  intro acc
+  set σ : ℝ := (Fintype.card S : ℝ)
+  set Mt : ℝ := (Fintype.card (D → S) : ℝ)
+  set K : ℝ := (Fintype.card Ω : ℝ)
+  set a : Ω → ℝ := fun ω => ∑ T, if Accepts (t ω) (sel ω) T then (1 : ℝ) else 0
+  set F : Ω → ℝ := fun ω => ∑ T, ∑ s, if Forks (t ω) (sel ω) T s then (1 : ℝ) else 0
+  have hacc : acc = (∑ ω, a ω) / (K * Mt) := by
+    simp only [acc, prob_eq_sum, Fintype.sum_prod_type, Fintype.card_prod, Nat.cast_mul]
+    rfl
+  have hfork : (prob fun p : (Ω × (D → S)) × S => Forks (t p.1.1) (sel p.1.1) p.1.2 p.2) =
+      (∑ ω, F ω) / (K * Mt * σ) := by
+    simp only [prob_eq_sum, Fintype.sum_prod_type, Fintype.card_prod, Nat.cast_mul]
+    rfl
+  have hσ : 0 < σ := Nat.cast_pos.mpr Fintype.card_pos
+  have hMt : 0 < Mt := Nat.cast_pos.mpr Fintype.card_pos
+  have hq' : (0 : ℝ) < q := Nat.cast_pos.mpr hq0
+  have ha0 : ∀ ω, 0 ≤ a ω := fun ω => Finset.sum_nonneg fun T _ => by split_ifs <;> simp
+  have hF0 : ∀ ω, 0 ≤ F ω := fun ω =>
+    Finset.sum_nonneg fun T _ => Finset.sum_nonneg fun s _ => by split_ifs <;> simp
+  rcases isEmpty_or_nonempty Ω with hΩ | hΩ
+  · have : acc = 0 := by rw [hacc]; simp
+    rw [this, zero_mul]
+    exact prob_nonneg _
+  have hK : 0 < K := Nat.cast_pos.mpr Fintype.card_pos
+  -- the lemma for every index, summed, with the Cauchy-Schwarz inequality
+  have hone : ∀ ω, σ * a ω ^ 2 ≤ q * Mt * (F ω + a ω) := fun ω => localFork (t ω) (sel ω) (hq ω)
+  have hsum : σ * ∑ ω, a ω ^ 2 ≤ q * Mt * ((∑ ω, F ω) + ∑ ω, a ω) := by
+    rw [Finset.mul_sum, ← Finset.sum_add_distrib, Finset.mul_sum]
+    exact Finset.sum_le_sum fun ω _ => hone ω
+  have hcs : (∑ ω, a ω) ^ 2 ≤ K * ∑ ω, a ω ^ 2 := by
+    have := sq_sum_le_card_mul_sum_sq (s := (Finset.univ : Finset Ω)) (f := a)
+    simpa [K, Finset.card_univ] using this
+  have hmain : σ * (∑ ω, a ω) ^ 2 ≤ K * (q * Mt * ((∑ ω, F ω) + ∑ ω, a ω)) := by
+    calc σ * (∑ ω, a ω) ^ 2 ≤ σ * (K * ∑ ω, a ω ^ 2) := by gcongr
+      _ = K * (σ * ∑ ω, a ω ^ 2) := by ring
+      _ ≤ K * (q * Mt * ((∑ ω, F ω) + ∑ ω, a ω)) := by gcongr
+  rw [hfork, hacc]
+  have key : (∑ ω, F ω) / (K * Mt * σ) -
+      (∑ ω, a ω) / (K * Mt) * ((∑ ω, a ω) / (K * Mt) / q - 1 / σ) =
+      (K * (q * Mt * ((∑ ω, F ω) + ∑ ω, a ω)) - σ * (∑ ω, a ω) ^ 2) /
+        (K ^ 2 * Mt ^ 2 * q * σ) := by
+    field_simp
+    ring
+  rw [← sub_nonneg, key]
+  exact div_nonneg (sub_nonneg.mpr hmain) (by positivity)
 
 end Dahlias.QTree

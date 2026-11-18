@@ -29,8 +29,8 @@ def hashCost {N : ℕ} : AdvQ n N E X M → ℕ
   | .hash _ => 1
   | _ => 0
 
-theorem hashBound_ask {N : ℕ} {α : Type} {q : AdvQ n N E X M} {f : AdvR q → Alg (AdvQ n N E X M) AdvR α}
-    {qh : ℕ} (h : HashBound (.ask q f) qh) :
+theorem hashBound_ask {N : ℕ} {α : Type} {q : AdvQ n N E X M}
+    {f : AdvR q → Alg (AdvQ n N E X M) AdvR α} {qh : ℕ} (h : HashBound (.ask q f) qh) :
     hashCost q ≤ qh ∧ ∀ r, HashBound (f r) (qh - hashCost q) := by
   cases q with
   | hash z => exact ⟨h.1, h.2⟩
@@ -86,7 +86,7 @@ theorem length_flog_interp (T : SigIn N X M → ZMod n) {α : Type}
       l.length + qh + (qs - st.closed.length) := by
   induction t generalizing st l qh with
   | done a =>
-    show l.length ≤ _
+    change l.length ≤ _
     omega
   | ask q f ih =>
     rw [Alg.interp_ask, flog_bind]
