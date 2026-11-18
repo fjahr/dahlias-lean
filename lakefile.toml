@@ -1,0 +1,33 @@
+name = "DahliasLean"
+version = "0.1.0"
+keywords = ["bitcoin", "cryptography", "schnorr", "bip459", "dahlias", "aggregate-signatures"]
+defaultTargets = ["Dahlias"]
+
+[leanOptions]
+pp.unicode.fun = true
+relaxedAutoImplicit = false
+weak.linter.mathlibStandardSet = true
+weak.linter.style.header = false
+# Sections share one set of `DecidableEq` variables; not every lemma needs each.
+weak.linter.unusedDecidableInType = false
+maxSynthPendingDepth = 3
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.34.1"
+
+# Pinned to the commit the proofs are developed against.
+[[require]]
+name = "TaprootLean"
+git = "https://github.com/dni/taproot-lean"
+rev = "f2c623b6143ec3c2c385357deefba819a251bbfe"
+
+# taproot-lean's VCVio pin, stated here so that it stays fixed.
+[[require]]
+name = "VCVio"
+git = "https://github.com/Verified-zkEVM/VCVio"
+rev = "afa6593f15e1e79ecb3cf22fc56191cecb452bb0"
+
+[[lean_lib]]
+name = "Dahlias"
