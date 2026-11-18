@@ -15,7 +15,15 @@
  * layout of secp256k1_fullagg_secnonce_save (magic, r1, r2, public key).
  *
  * NonceGen: secp256k1_fullagg_nonce_gen takes extra_input32 as 32 bytes or
- * NULL, so other lengths print SKIP. */
+ * NULL, so other lengths print SKIP.
+ *
+ * Two kinds of cases test the state the C API keeps and have no counterpart in
+ * the BIP's algorithms:
+ * - `R`, with the fields of `S`: sign, then sign again with the same secnonce
+ *   object. Prints the partial signature and whether the second call was
+ *   rejected.
+ * - `X`, with the fields of `S` and a second set of lists: initialize the
+ *   session with the first lists and sign with the second. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -154,34 +162,75 @@ static int session(char *agg_s, char *pks_s, char *msgs_s, char *nonces_s, secp2
     return secp256k1_fullagg_session_init(ctx, sess, &agg, pk_ptrs, msg_ptrs, nonce_ptrs, (size_t)pks_l.n);
 }
 
-static void do_sign(char *sec_s, char *sk_s, char *m_s, char *agg_s, char *pks_s, char *msgs_s, char *nonces_s) {
-    unsigned char secb[64], sk[32], m[32], out[32];
-    secp256k1_fullagg_session sess;
+/* Sign with the lists that are loaded, in the given session. With `reuse`,
+ * sign a second time with the same secnonce object and report the outcome. */
+static void sign_loaded(const unsigned char *secb, const unsigned char *sk, const unsigned char *m,
+                        const secp256k1_fullagg_session *sess, int reuse) {
+    unsigned char out[32];
     secp256k1_keypair kp;
     secp256k1_pubkey pub;
-    int r, j;
+    int j;
+    if (!secp256k1_keypair_create(ctx, &kp, sk) || !secp256k1_keypair_pub(ctx, &pub, &kp)) {
+        printf("FAIL\n"); return;
+    }
+    for (j = 0; j < pks_l.n; j++) {
+        secp256k1_fullagg_secnonce sec;
+        secp256k1_fullagg_partial_sig psig, psig2;
+        memcpy(&sec.data[0], secnonce_magic, 4);
+        memcpy(&sec.data[4], secb, 64);
+        memcpy(&sec.data[68], pub.data, 64);
+        illegal = 0;
+        if (secp256k1_fullagg_partial_sign(ctx, &psig, &sec, &kp, m, sess, pk_ptrs, msg_ptrs, nonce_ptrs, (size_t)pks_l.n, (size_t)j) && !illegal) {
+            secp256k1_fullagg_partial_sig_serialize(ctx, out, &psig);
+            print_hex(out, 32);
+            if (reuse) {
+                illegal = 0;
+                if (secp256k1_fullagg_partial_sign(ctx, &psig2, &sec, &kp, m, sess, pk_ptrs, msg_ptrs, nonce_ptrs, (size_t)pks_l.n, (size_t)j) && !illegal) {
+                    printf(":reuse-accepted");
+                } else {
+                    printf(":reuse-rejected");
+                }
+            }
+            printf("\n");
+            return;
+        }
+    }
+    printf("FAIL\n");
+}
+
+static void do_sign(char *sec_s, char *sk_s, char *m_s, char *agg_s, char *pks_s, char *msgs_s, char *nonces_s, int reuse) {
+    unsigned char secb[64], sk[32], m[32];
+    secp256k1_fullagg_session sess;
+    int r;
     if (unhex(sec_s, secb, 64) != 64 || unhex(sk_s, sk, 32) != 32 || unhex(m_s, m, 32) != 32) {
         printf("SKIP\n"); return;
     }
     r = session(agg_s, pks_s, msgs_s, nonces_s, &sess);
     if (r < 0) { printf("SKIP\n"); return; }
-    if (r == 0 || !secp256k1_keypair_create(ctx, &kp, sk) || !secp256k1_keypair_pub(ctx, &pub, &kp)) {
+    if (r == 0) { printf("FAIL\n"); return; }
+    sign_loaded(secb, sk, m, &sess, reuse);
+}
+
+/* Initialize the session with the first lists and sign with the second. */
+static void do_sign_other(char *sec_s, char *sk_s, char *m_s, char *agg_s, char *pks_s, char *msgs_s, char *nonces_s,
+                          char *pks2_s, char *msgs2_s, char *nonces2_s) {
+    unsigned char secb[64], sk[32], m[32];
+    secp256k1_fullagg_session sess;
+    int r;
+    if (unhex(sec_s, secb, 64) != 64 || unhex(sk_s, sk, 32) != 32 || unhex(m_s, m, 32) != 32) {
+        printf("SKIP\n"); return;
+    }
+    r = session(agg_s, pks_s, msgs_s, nonces_s, &sess);
+    if (r < 0) { printf("SKIP\n"); return; }
+    if (r == 0) { printf("FAIL\n"); return; }
+    parse_list(pks2_s, 32, &pks_l);
+    parse_list(msgs2_s, 32, &msgs_l);
+    parse_list(nonces2_s, 66, &nonces_l);
+    if (pks_l.bad_len || msgs_l.bad_len || nonces_l.bad_len) { printf("SKIP\n"); return; }
+    if (pks_l.n != msgs_l.n || pks_l.n != nonces_l.n || pks_l.n == 0 || !load_pks() || !load_nonces()) {
         printf("FAIL\n"); return;
     }
-    for (j = 0; j < pks_l.n; j++) {
-        secp256k1_fullagg_secnonce sec;
-        secp256k1_fullagg_partial_sig psig;
-        memcpy(&sec.data[0], secnonce_magic, 4);
-        memcpy(&sec.data[4], secb, 64);
-        memcpy(&sec.data[68], pub.data, 64);
-        illegal = 0;
-        if (secp256k1_fullagg_partial_sign(ctx, &psig, &sec, &kp, m, &sess, pk_ptrs, msg_ptrs, nonce_ptrs, (size_t)pks_l.n, (size_t)j) && !illegal) {
-            secp256k1_fullagg_partial_sig_serialize(ctx, out, &psig);
-            print_hex(out, 32); printf("\n");
-            return;
-        }
-    }
-    printf("FAIL\n");
+    sign_loaded(secb, sk, m, &sess, 0);
 }
 
 static void do_sigagg(char *agg_s, char *pks_s, char *msgs_s, char *nonces_s, char *psigs_s) {
@@ -251,13 +300,15 @@ int main(void) {
     secp256k1_context_set_illegal_callback(c, on_illegal, NULL);
     ctx = c;
     while (fgets(line, sizeof(line), stdin) != NULL) {
-        char *save, *f[10];
+        char *save, *f[13];
         int k = 0;
         line[strcspn(line, "\n")] = 0;
-        for (f[0] = strtok_r(line, " ", &save); f[k] != NULL && k < 9; f[k] = strtok_r(NULL, " ", &save)) k++;
+        for (f[0] = strtok_r(line, " ", &save); f[k] != NULL && k < 12; f[k] = strtok_r(NULL, " ", &save)) k++;
         if (k == 4 && f[0][0] == 'G') do_noncegen(f[1], f[2], f[3]);
         else if (k == 2 && f[0][0] == 'N') do_nonceagg(f[1]);
-        else if (k == 8 && f[0][0] == 'S') do_sign(f[1], f[2], f[3], f[4], f[5], f[6], f[7]);
+        else if (k == 8 && f[0][0] == 'S') do_sign(f[1], f[2], f[3], f[4], f[5], f[6], f[7], 0);
+        else if (k == 8 && f[0][0] == 'R') do_sign(f[1], f[2], f[3], f[4], f[5], f[6], f[7], 1);
+        else if (k == 11 && f[0][0] == 'X') do_sign_other(f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9], f[10]);
         else if (k == 6 && f[0][0] == 'A') do_sigagg(f[1], f[2], f[3], f[4], f[5]);
         else if (k == 6 && f[0][0] == 'P') do_partial(f[1], f[2], f[3], f[4], f[5]);
         else if (k == 4 && f[0][0] == 'V') do_verify(f[1], f[2], f[3]);

@@ -69,6 +69,8 @@ python3 scripts/fuzz.py path/to/bips/bip-0459 --no-lean --secp256k1 ./fuzz_secp2
 
 The C API cannot express fields of the wrong length. The driver skips those cases, about one in eight.
 
+With `--secp256k1` the script also tests the state that only the C API keeps. It signs twice with the same `secnonce` object and expects the second call to fail, and it signs with lists that differ from the ones the session was initialized with, which must fail unless both sets of lists give the same nonce coefficient input.
+
 Runs so far found no mismatch: 5,000 cases against the Lean model (seed 1) and about 23,400 compared cases against libsecp256k1 (seeds 21 to 23).
 
 The three implementations treat a few malformed inputs differently. The script counts these cases separately and lists them at the end of a run:

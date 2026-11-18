@@ -17,6 +17,9 @@ absent optional argument, lists separated by `,`):
 * `P psig pks msgs pubnonces index`: `PartialSigVerify`
 * `V pks msgs sig`: `Verify`
 * `T sk t xonly`: `TweakSK` and `TweakPK`
+
+Lines of kind `R` and `X` test the state of the C API (see
+`scripts/fuzz_secp256k1.c`) and print `SKIP` here.
 -/
 
 open Dahlias Dahlias.Bytes Taproot.BIP340Vectors
@@ -58,6 +61,8 @@ def run (line : String) : String :=
     | some sk', some pk' => toHex sk' ++ ":" ++ toHex pk'
     | none, none => "FAIL"
     | _, _ => "MIXED"
+  | "R" :: _ => "SKIP"
+  | "X" :: _ => "SKIP"
   | _ => "BADLINE"
 
 partial def loop (stdin stdout : IO.FS.Stream) : IO Unit := do

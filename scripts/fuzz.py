@@ -20,6 +20,11 @@ With --secp256k1, the same cases also run through libsecp256k1's fullagg
 module, using the driver built from scripts/fuzz_secp256k1.c. The C API cannot
 express fields of the wrong length; the driver skips those cases.
 
+Two more kinds of cases test the state that only the C API keeps: signing
+twice with the same secnonce object (the second call must fail), and signing
+with lists that differ from the ones the session was initialized with (must
+fail unless the lists give the same nonce coefficient input).
+
 The specification text, the reference and the C API disagree on some malformed
 inputs (see KNOWN below). Those cases are counted separately and do not fail
 the run.
@@ -160,6 +165,24 @@ class Gen:
             if kind == "N":
                 R1, R2 = ref.NonceAgg([self.parse_nonce(b) for b in case[1]])
                 return (R1.to_bytes_compressed() + R2.to_bytes_compressed()).hex()
+            if kind == "R":
+                r = self.run_ref(("S",) + tuple(case[1:]))
+                return r if r == "FAIL" else r + ":reuse-rejected"
+            if kind == "X":
+                _, secnonce, sk, m, aggnonce, pks, msgs, pubnonces, pks2, msgs2, pubnonces2 = case
+                # the session must initialize on the first lists
+                if len(pks) != len(msgs) or len(pks) != len(pubnonces) or not pks:
+                    raise ValueError("list lengths")
+                self.parse_nonce(aggnonce)
+                self.parse_pks(pks)
+                first = [self.parse_nonce(b) for b in pubnonces]
+                # the first halves of the public nonces are not part of the session
+                same = (pks == pks2 and msgs == msgs2 and len(pubnonces) == len(pubnonces2)
+                        and all(a[33:] == b[33:] for a, b in zip(pubnonces, pubnonces2)))
+                ref.GetSessionValues(self.parse_nonce(aggnonce), self.parse_pks(pks), msgs, first)
+                if not same:
+                    raise ValueError("session mismatch")
+                return self.run_ref(("S", secnonce, sk, m, aggnonce, pks2, msgs2, pubnonces2))
             if kind == "S":
                 _, secnonce, sk, m, aggnonce, pks, msgs, pubnonces = case
                 return ref.Sign(self.parse_secnonce(secnonce), self.scalar(sk), m,
@@ -290,6 +313,35 @@ class Gen:
             # the signer's own R1 replaced: Sign does not look at it
             c[7][i] = self.point() + c[7][i][33:]
         return tuple(c), known
+
+    def case_reuse(self):
+        c, known = self.case_sign()
+        return ("R",) + tuple(c[1:]), known
+
+    def case_session(self):
+        s = self.session(1, 4)
+        u = len(s.sks)
+        i = self.rng.randrange(u)
+        c = s.sign_case(i)
+        pks2, msgs2, nonces2 = list(c[5]), list(c[6]), list(c[7])
+        j = self.rng.randrange(u)
+        r = self.rng.random()
+        if r < 0.20:
+            pass
+        elif r < 0.35:
+            msgs2[j] = self.rbytes(32)
+        elif r < 0.50:
+            pks2[j] = s.pks[(j + 1) % u] if s.pks[(j + 1) % u] != pks2[j] else self.session(1, 1).pks[0]
+        elif r < 0.65:
+            nonces2[j] = nonces2[j][:33] + self.point()
+        elif r < 0.80:
+            # only the first half changes: not part of the session
+            nonces2[j] = self.point() + nonces2[j][33:]
+        elif r < 0.90 and u >= 2:
+            pks2.pop(); msgs2.pop(); nonces2.pop()
+        else:
+            pks2.append(pks2[0]); msgs2.append(msgs2[0]); nonces2.append(self.point() + self.point())
+        return ("X",) + tuple(c[1:]) + (pks2, msgs2, nonces2), None
 
     def case_sigagg(self):
         s = self.session(1, 4)
@@ -445,6 +497,8 @@ def main():
     gen = Gen(random.Random(args.seed), ref, lab)
     makers = [gen.case_noncegen, gen.case_nonceagg, gen.case_sign, gen.case_sign, gen.case_sigagg,
               gen.case_partial, gen.case_verify, gen.case_verify, gen.case_tweak]
+    if args.secp256k1:
+        makers += [gen.case_reuse, gen.case_session]
     made = [makers[i % len(makers)]() for i in range(args.cases)]
     cases = [c for c, _ in made]
     known = [k for _, k in made]
