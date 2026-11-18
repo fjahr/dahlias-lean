@@ -197,29 +197,33 @@ def solveSessions (cache : List (CloseRec n E X M)) :
 
 variable {Coins : Type} (A : Adversary n N E X M Coins)
 
+/-- The reduction after it has received its challenges `P` and `U`. -/
+def reductionBody (ρ : Coins × (SigIn N X M → ZMod n) × ZMod n) :
+    Alg (OmdlQ n) (OmdlR E) (List (ZMod n)) :=
+  Alg.interp (simChallenger C nonceCoef N qs P U ρ.2.1) (A ρ.1 P) ⟨⟨0, [], []⟩, [], []⟩ >>=
+    fun r₁ =>
+      match forkPointPub C N P r₁.1 r₁.2.signer with
+      | none => .done []
+      | some z =>
+        Alg.interp (simChallenger C nonceCoef N qs P U (update ρ.2.1 z ρ.2.2)) (A ρ.1 P)
+            ⟨⟨0, [], []⟩, [], r₁.2.cache⟩ >>= fun r₂ =>
+          solveSessions C qs P r₂.2.cache qs >>= fun sols =>
+            let cnt : ZMod n := ((r₁.1.L.filter fun e => decide (e = z.2.2)).length : ZMod n)
+            let v := (r₁.1.sig.2 - r₂.1.sig.2) / (cnt * (ρ.2.1 z - ρ.2.2))
+            let x := extractX C P r₁.1.τ v
+            .done ((List.range (2 * qs + 1)).map fun i =>
+              if i = 0 then x
+              else if (i - 1) % 2 = 0 then ((sols.getD ((i - 1) / 2) fun _ => (0, 0)) x).1
+              else ((sols.getD ((i - 1) / 2) fun _ => (0, 0)) x).2)
+
 /-- **The reduction**: an AOMDL adversary from a forger. Its coins are the
-forger's coins, the random oracle table and the new value at the fork point. -/
+forger's coins, the random oracle table and the new value at the fork point.
+It asks for `2⋅qs + 1` challenges: the public key `P` and the nonces
+`U₀.1, U₀.2, U₁.1, …` of the sessions. -/
 def reduction : OmdlAdversary n E (Coins × (SigIn N X M → ZMod n) × ZMod n) := fun ρ =>
   getChals (2 * qs + 1) >>= fun chals =>
-    let P := chals.getD 0 0
-    let U : ℕ → PubNonce E := fun k => (chals.getD (2 * k + 1) 0, chals.getD (2 * k + 2) 0)
-    let T := ρ.2.1
-    Alg.interp (simChallenger C nonceCoef N qs P U T) (A ρ.1 P) ⟨⟨0, [], []⟩, [], []⟩ >>=
-      fun r₁ =>
-        match forkPointPub C N P r₁.1 r₁.2.signer with
-        | none => .done []
-        | some z =>
-          let T' := update T z ρ.2.2
-          Alg.interp (simChallenger C nonceCoef N qs P U T') (A ρ.1 P)
-              ⟨⟨0, [], []⟩, [], r₁.2.cache⟩ >>= fun r₂ =>
-            solveSessions C qs P r₂.2.cache qs >>= fun sols =>
-              let cnt : ZMod n := ((r₁.1.L.filter fun e => decide (e = z.2.2)).length : ZMod n)
-              let v := (r₁.1.sig.2 - r₂.1.sig.2) / (cnt * (T z - ρ.2.2))
-              let x := extractX C P r₁.1.τ v
-              .done ((List.range (2 * qs + 1)).map fun i =>
-                if i = 0 then x
-                else if (i - 1) % 2 = 0 then ((sols.getD ((i - 1) / 2) fun _ => (0, 0)) x).1
-                else ((sols.getD ((i - 1) / 2) fun _ => (0, 0)) x).2)
+    reductionBody C nonceCoef N qs (chals.getD 0 0)
+      (fun k => (chals.getD (2 * k + 1) 0, chals.getD (2 * k + 2) 0)) A ρ
 
 /-! ## The collision finder -/
 
