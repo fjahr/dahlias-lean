@@ -119,10 +119,10 @@ def sign (secnonce sk m aggnonce : Bytes) (pks msgs pubnonces : List Bytes) : Op
 
 /-- `SigAgg`. -/
 def sigAgg (aggnonce : Bytes) (pks msgs pubnonces psigs : List Bytes) : Option Bytes :=
-  if wellFormed pks msgs pubnonces.length then
-    (psigs.mapM scalar).bind fun ss =>
-      (Dahlias.sigAgg O hashes (parseNonce O aggnonce) (pks.zip msgs)
-        (pubnonces.map (parseNonce O)) ss).map fun (r, s) => r ++ serScalar s
+  if wellFormed pks msgs pubnonces.length && psigs.all (fun b => (scalar b).isSome) then
+    (Dahlias.sigAgg O hashes (parseNonce O aggnonce) (pks.zip msgs)
+      (pubnonces.map (parseNonce O)) (psigs.map fun b => (scalar b).getD 0)).map
+        fun (r, s) => r ++ serScalar s
   else none
 
 /-- `PartialSigVerify`. -/
