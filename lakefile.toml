@@ -8,8 +8,9 @@ pp.unicode.fun = true
 relaxedAutoImplicit = false
 weak.linter.mathlibStandardSet = true
 weak.linter.style.header = false
-# Sections share one set of `DecidableEq` variables; not every lemma needs each.
+# Sections share one set of `DecidableEq` and `Fintype` variables; not every lemma needs each.
 weak.linter.unusedDecidableInType = false
+weak.linter.unusedFintypeInType = false
 maxSynthPendingDepth = 3
 
 [[require]]
