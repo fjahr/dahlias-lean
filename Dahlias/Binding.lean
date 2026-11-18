@@ -119,7 +119,8 @@ def Bad (coins : Coins) (j : ℕ) (T : SigIn N X M → ZMod n) : Prop :=
 
 theorem verify_true {H : Hashes n E X M} {L : List (X × M)} {sig : X × ZMod n}
     (h : verify C.ops H L sig = true) :
-    L ≠ [] ∧ Lifts C L ∧ ∃ R, C.liftX sig.1 = some R ∧ C.mulG sig.2 = R + keySum C.ops H L sig.1 := by
+    L ≠ [] ∧ Lifts C L ∧
+      ∃ R, C.liftX sig.1 = some R ∧ C.mulG sig.2 = R + keySum C.ops H L sig.1 := by
   unfold verify at h
   cases hR : C.ops.liftX sig.1 with
   | none => simp [hR] at h
@@ -283,7 +284,7 @@ theorem prob_bad_le (hE : Curve.PrimeOrder n E) (hN : N < n) (j : ℕ) :
   have hn : (0 : ℝ) < n := Nat.cast_pos.mpr (Fact.out : n.Prime).pos
   rw [prob_eq_sum, Fintype.sum_prod_type, Fintype.card_prod, Nat.cast_mul]
   rcases isEmpty_or_nonempty Coins with hC | hC
-  · simp
+  · simp only [Finset.univ_eq_empty, Finset.sum_empty, zero_div]
     positivity
   have hK : (0 : ℝ) < Fintype.card Coins := Nat.cast_pos.mpr Fintype.card_pos
   have hM : (0 : ℝ) < Fintype.card (SigIn N X M → ZMod n) := Nat.cast_pos.mpr Fintype.card_pos
