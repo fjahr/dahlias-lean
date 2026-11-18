@@ -61,6 +61,20 @@ theorem run_bind (h : (q : Q) → σ → R q × σ) (t : Alg Q R α) (g : α →
   | done a => rfl
   | ask q f ih => exact ih _ _
 
+/-- Two handlers that answer alike on related states give the same output and
+related final states. -/
+theorem run_rel {τ : Type} (h : (q : Q) → σ → R q × σ) (h' : (q : Q) → τ → R q × τ)
+    (Rel : σ → τ → Prop)
+    (hstep : ∀ q s s', Rel s s' → (h q s).1 = (h' q s').1 ∧ Rel (h q s).2 (h' q s').2)
+    (t : Alg Q R α) (s : σ) (s' : τ) (hr : Rel s s') :
+    (run h t s).1 = (run h' t s').1 ∧ Rel (run h t s).2 (run h' t s').2 := by
+  induction t generalizing s s' with
+  | done a => exact ⟨rfl, hr⟩
+  | ask q f ih =>
+    obtain ⟨h1, h2⟩ := hstep q s s' hr
+    simp only [run_ask, h1]
+    exact ih _ _ _ h2
+
 variable {Q' : Type} {R' : Q' → Type}
 
 /-- Run with a stateful handler that answers each query by an algorithm for
