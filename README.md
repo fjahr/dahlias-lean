@@ -79,6 +79,31 @@ The three implementations treat a few malformed inputs differently. The script c
 - `NonceAgg` of an empty array fails in the specification and raises `IndexError` in `reference.py`.
 - `Sign` as specified fails if a secret nonce scalar is zero or not below `n`. The C `secnonce` object is opaque, and `partial_sign` rejects only the all-zero nonce.
 
+## Exhaustive test for the C module
+
+`patches/secp256k1-fullagg-exhaustive-tests.patch` adds a test of the `fullagg` module to libsecp256k1's exhaustive tests, which run the library on a group of order 13 or 199. It applies to the fork's branch `2026-11-half-full-agg` at commit `1f06bdf1`.
+
+The test runs signing sessions of one and two signers for all secret nonces and compares every step with the value computed on discrete logarithms:
+
+- `NonceAgg` fails exactly if an aggregate nonce is the point at infinity.
+- `GetSessionValues` fails exactly if `R = R1 + b⋅R2` is the point at infinity.
+- `Sign` fails exactly if another signer has the same `R2`.
+- Otherwise the partial signature is `e⋅(r1 + b⋅r2) + c⋅d'`, it is the only value `PartialSigVerify` accepts, and the sum of the partial signatures is the only `s` for which `Verify` accepts `(x(R), s)`.
+
+These are the failure conditions of the Lean model (`Dahlias/Basic.lean`) and the statements of `Dahlias/Correctness.lean`. In a group of order 13 the failure cases, which never occur by chance on secp256k1, happen in more than a quarter of the two-signer sessions.
+
+```sh
+git -C path/to/secp256k1 apply path/to/dahlias-lean/patches/secp256k1-fullagg-exhaustive-tests.patch
+cmake -S path/to/secp256k1 -B build -DSECP256K1_EXPERIMENTAL=ON \
+  -DSECP256K1_ENABLE_MODULE_FULLAGG=ON -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=ON
+cmake --build build
+build/bin/exhaustive_tests
+```
+
+The test was run on the group of order 13, where it adds about ten seconds. It has code for the group of order 199 that does less work per session, but that path has not been run.
+
+Five mutations of the expected values (ignoring a duplicate `R2`, an infinite aggregate nonce or an infinite `R`, the sign of `R`, and accepting a second `s`) each make the test fail.
+
 ## License
 
 MIT, see `LICENSE`.

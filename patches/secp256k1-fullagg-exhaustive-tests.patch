@@ -1,0 +1,238 @@
+diff --git a/src/modules/fullagg/Makefile.am.include b/src/modules/fullagg/Makefile.am.include
+index 29fe41c6..c6aad7d9 100644
+--- a/src/modules/fullagg/Makefile.am.include
++++ b/src/modules/fullagg/Makefile.am.include
+@@ -1,5 +1,6 @@
+ include_HEADERS += include/secp256k1_fullagg.h
+ noinst_HEADERS += src/modules/fullagg/main_impl.h
+ noinst_HEADERS += src/modules/fullagg/tests_impl.h
++noinst_HEADERS += src/modules/fullagg/tests_exhaustive_impl.h
+ noinst_HEADERS += src/modules/fullagg/vectors.h
+ noinst_HEADERS += src/modules/fullagg/bench_impl.h
+diff --git a/src/modules/fullagg/tests_exhaustive_impl.h b/src/modules/fullagg/tests_exhaustive_impl.h
+new file mode 100644
+index 00000000..02d9b202
+--- /dev/null
++++ b/src/modules/fullagg/tests_exhaustive_impl.h
+@@ -0,0 +1,196 @@
++/***********************************************************************
++ * Distributed under the MIT software license, see the accompanying    *
++ * file COPYING or https://www.opensource.org/licenses/mit-license.php.*
++ ***********************************************************************/
++
++#ifndef SECP256K1_MODULE_FULLAGG_TESTS_EXHAUSTIVE_H
++#define SECP256K1_MODULE_FULLAGG_TESTS_EXHAUSTIVE_H
++
++#include "../../../include/secp256k1_fullagg.h"
++#include "main_impl.h"
++
++/* In the smallest group every candidate value is tried. In larger groups only
++ * the expected value and its successor are, to keep the running time down. */
++#if EXHAUSTIVE_TEST_ORDER <= 13
++#define FULLAGG_TRY(s, expected) 1
++#else
++#define FULLAGG_TRY(s, expected) ((s) == (unsigned)(expected) || (s) == ((unsigned)(expected) + 1) % EXHAUSTIVE_TEST_ORDER)
++#endif
++
++/* Run one signing session of u <= 2 signers with secret keys d[i] and secret
++ * nonces (r1[i], r2[i]), all given as discrete logarithms, and compare every
++ * step with the result computed on the discrete logarithms:
++ *  - NonceAgg fails exactly if an aggregate nonce is the point at infinity.
++ *  - GetSessionValues fails exactly if R = R1 + b*R2 is the point at infinity.
++ *  - Sign fails exactly if another signer has the same R2.
++ *  - Otherwise the partial signature is e*(r1 + b*r2) + c*d', it is the only
++ *    value PartialSigVerify accepts, and the sum of the partial signatures is
++ *    the only s for which Verify accepts (x(R), s). */
++static void test_exhaustive_fullagg_session(const secp256k1_context *ctx, const secp256k1_ge *group,
++                                            const secp256k1_keypair *keypairs,
++                                            const secp256k1_xonly_pubkey *xonly_pubkeys,
++                                            unsigned char (*xonly_pubkey_bytes)[32], const int *parities,
++                                            size_t u, const int *d, const int *r1, const int *r2) {
++    secp256k1_fullagg_secnonce secnonce[2];
++    secp256k1_fullagg_pubnonce pubnonce[2];
++    const secp256k1_fullagg_pubnonce *pubnonce_ptr[2];
++    const secp256k1_xonly_pubkey *pk_ptr[2];
++    unsigned char msg[2][32];
++    const unsigned char *msg_ptr[2];
++    secp256k1_fullagg_aggnonce aggnonce;
++    secp256k1_fullagg_session session;
++    secp256k1_fullagg_partial_sig psig[2];
++    const secp256k1_fullagg_partial_sig *psig_ptr[2];
++    unsigned char aggnonce_ser[66], noncehash[32], sig64[64];
++    secp256k1_scalar b;
++    int a1 = 0, a2 = 0, k, s_sum = 0, any_fail = 0;
++    unsigned s;
++    size_t i, j;
++
++    for (i = 0; i < u; i++) {
++        secp256k1_scalar ks[2];
++        secp256k1_ge ges[2];
++        secp256k1_ge pk;
++        testrand256(msg[i]);
++        msg_ptr[i] = msg[i];
++        pk_ptr[i] = &xonly_pubkeys[d[i] - 1];
++        CHECK(secp256k1_xonly_pubkey_load(ctx, &pk, pk_ptr[i]));
++        secp256k1_scalar_set_int(&ks[0], r1[i]);
++        secp256k1_scalar_set_int(&ks[1], r2[i]);
++        secp256k1_fullagg_secnonce_save(&secnonce[i], ks, &pk);
++        ges[0] = group[r1[i]];
++        ges[1] = group[r2[i]];
++        secp256k1_fullagg_pubnonce_save(&pubnonce[i], ges);
++        pubnonce_ptr[i] = &pubnonce[i];
++        psig_ptr[i] = &psig[i];
++        a1 = (a1 + r1[i]) % EXHAUSTIVE_TEST_ORDER;
++        a2 = (a2 + r2[i]) % EXHAUSTIVE_TEST_ORDER;
++    }
++
++    /* NonceAgg */
++    if (a1 == 0 || a2 == 0) {
++        CHECK(!secp256k1_fullagg_nonce_agg(ctx, &aggnonce, pubnonce_ptr, u));
++        return;
++    }
++    CHECK(secp256k1_fullagg_nonce_agg(ctx, &aggnonce, pubnonce_ptr, u));
++    CHECK(secp256k1_fullagg_aggnonce_serialize(ctx, aggnonce_ser, &aggnonce));
++
++    /* GetSessionValues */
++    CHECK(secp256k1_fullagg_compute_noncehash(ctx, noncehash, aggnonce_ser, pk_ptr, msg_ptr, pubnonce_ptr, u));
++    secp256k1_scalar_set_b32(&b, noncehash, NULL);
++    k = (a1 + (int)b * a2) % EXHAUSTIVE_TEST_ORDER;
++    if (k == 0) {
++        CHECK(!secp256k1_fullagg_session_init(ctx, &session, &aggnonce, pk_ptr, msg_ptr, pubnonce_ptr, u));
++        return;
++    }
++    CHECK(secp256k1_fullagg_session_init(ctx, &session, &aggnonce, pk_ptr, msg_ptr, pubnonce_ptr, u));
++
++    /* Sign and PartialSigVerify */
++    for (i = 0; i < u; i++) {
++        int dup = 0;
++        for (j = 0; j < u; j++) {
++            if (j != i && r2[j] == r2[i]) dup = 1;
++        }
++        if (dup) {
++            CHECK(!secp256k1_fullagg_partial_sign(ctx, &psig[i], &secnonce[i], &keypairs[d[i] - 1], msg[i], &session, pk_ptr, msg_ptr, pubnonce_ptr, u, i));
++            any_fail = 1;
++        } else {
++            secp256k1_scalar c, expected_s;
++            unsigned char expected_s_bytes[32], buf[32];
++            int dd = parities[d[i] - 1] ? EXHAUSTIVE_TEST_ORDER - d[i] : d[i];
++            int kk = (r1[i] + (int)b * r2[i]) % EXHAUSTIVE_TEST_ORDER;
++            if (parities[k - 1]) kk = (EXHAUSTIVE_TEST_ORDER - kk) % EXHAUSTIVE_TEST_ORDER;
++            CHECK(secp256k1_fullagg_compute_sighash(ctx, &c, pk_ptr, msg_ptr, u, xonly_pubkey_bytes[k - 1], i));
++            expected_s = (kk + (int)c * dd) % EXHAUSTIVE_TEST_ORDER;
++            secp256k1_scalar_get_b32(expected_s_bytes, &expected_s);
++            CHECK(secp256k1_fullagg_partial_sign(ctx, &psig[i], &secnonce[i], &keypairs[d[i] - 1], msg[i], &session, pk_ptr, msg_ptr, pubnonce_ptr, u, i));
++            CHECK(secp256k1_fullagg_partial_sig_serialize(ctx, buf, &psig[i]));
++            CHECK(secp256k1_memcmp_var(buf, expected_s_bytes, 32) == 0);
++            /* The secret nonce is gone. */
++            CHECK(secp256k1_is_zero_array(secnonce[i].data, sizeof(secnonce[i].data)));
++            /* Exactly one partial signature verifies. */
++            for (s = 0; s < EXHAUSTIVE_TEST_ORDER; s++) {
++                secp256k1_fullagg_partial_sig other;
++                secp256k1_scalar ss = s;
++                if (!FULLAGG_TRY(s, expected_s)) continue;
++                secp256k1_scalar_get_b32(buf, &ss);
++                CHECK(secp256k1_fullagg_partial_sig_parse(ctx, &other, buf));
++                CHECK(secp256k1_fullagg_partial_sig_verify(ctx, &other, pubnonce_ptr, pk_ptr, msg_ptr, u, i) == (s == expected_s));
++            }
++            s_sum = (s_sum + (int)expected_s) % EXHAUSTIVE_TEST_ORDER;
++        }
++    }
++    if (any_fail) return;
++
++    /* SigAgg and Verify */
++    CHECK(secp256k1_fullagg_partial_sig_agg(ctx, sig64, &session, psig_ptr, u));
++    CHECK(secp256k1_memcmp_var(sig64, xonly_pubkey_bytes[k - 1], 32) == 0);
++    /* 0..order-1 = that s value; order = an s that is not below the group order */
++    for (s = 0; s <= EXHAUSTIVE_TEST_ORDER; s++) {
++        if (s != EXHAUSTIVE_TEST_ORDER && !FULLAGG_TRY(s, s_sum)) continue;
++        memset(sig64 + 32, 0, 32);
++        secp256k1_write_be32(sig64 + 60, s);
++        CHECK(secp256k1_fullagg_verify(ctx, sig64, pk_ptr, msg_ptr, u) == (s == (unsigned)s_sum));
++    }
++}
++
++static void test_exhaustive_fullagg(const secp256k1_context *ctx, const secp256k1_ge *group) {
++    secp256k1_keypair keypair[EXHAUSTIVE_TEST_ORDER - 1];
++    secp256k1_xonly_pubkey xonly_pubkey[EXHAUSTIVE_TEST_ORDER - 1];
++    int parity[EXHAUSTIVE_TEST_ORDER - 1];
++    unsigned char xonly_pubkey_bytes[EXHAUSTIVE_TEST_ORDER - 1][32];
++    int d[2], r1[2], r2[2];
++    uint64_t iter = 0;
++    unsigned i;
++
++    for (i = 1; i < EXHAUSTIVE_TEST_ORDER; ++i) {
++        secp256k1_scalar scalar_i;
++        unsigned char buf[32];
++        secp256k1_scalar_set_int(&scalar_i, i);
++        secp256k1_scalar_get_b32(buf, &scalar_i);
++        CHECK(secp256k1_keypair_create(ctx, &keypair[i - 1], buf));
++        CHECK(secp256k1_keypair_xonly_pub(ctx, &xonly_pubkey[i - 1], &parity[i - 1], &keypair[i - 1]));
++        CHECK(secp256k1_xonly_pubkey_serialize(ctx, xonly_pubkey_bytes[i - 1], &xonly_pubkey[i - 1]));
++    }
++
++    /* One signer: all secret nonces, with all secret keys for the smallest
++     * group and a random one otherwise. */
++    for (r1[0] = 1; r1[0] < EXHAUSTIVE_TEST_ORDER; r1[0]++) {
++        for (r2[0] = 1; r2[0] < EXHAUSTIVE_TEST_ORDER; r2[0]++) {
++            if (skip_section(&iter)) continue;
++#if EXHAUSTIVE_TEST_ORDER <= 13
++            for (d[0] = 1; d[0] < EXHAUSTIVE_TEST_ORDER; d[0]++) {
++                test_exhaustive_fullagg_session(ctx, group, keypair, xonly_pubkey, xonly_pubkey_bytes, parity, 1, d, r1, r2);
++            }
++#else
++            d[0] = 1 + (int)testrand_int(EXHAUSTIVE_TEST_ORDER - 1);
++            test_exhaustive_fullagg_session(ctx, group, keypair, xonly_pubkey, xonly_pubkey_bytes, parity, 1, d, r1, r2);
++#endif
++        }
++    }
++
++    /* Two signers: all pairs of second nonces, which decide whether Sign
++     * fails, with random keys. For the smallest group also all first nonces. */
++    for (r2[0] = 1; r2[0] < EXHAUSTIVE_TEST_ORDER; r2[0]++) {
++        for (r2[1] = 1; r2[1] < EXHAUSTIVE_TEST_ORDER; r2[1]++) {
++            if (skip_section(&iter)) continue;
++#if EXHAUSTIVE_TEST_ORDER <= 13
++            for (r1[0] = 1; r1[0] < EXHAUSTIVE_TEST_ORDER; r1[0]++) {
++                for (r1[1] = 1; r1[1] < EXHAUSTIVE_TEST_ORDER; r1[1]++) {
++                    d[0] = 1 + (int)testrand_int(EXHAUSTIVE_TEST_ORDER - 1);
++                    d[1] = 1 + (int)testrand_int(EXHAUSTIVE_TEST_ORDER - 1);
++                    test_exhaustive_fullagg_session(ctx, group, keypair, xonly_pubkey, xonly_pubkey_bytes, parity, 2, d, r1, r2);
++                }
++            }
++#else
++            r1[0] = 1 + (int)testrand_int(EXHAUSTIVE_TEST_ORDER - 1);
++            r1[1] = 1 + (int)testrand_int(EXHAUSTIVE_TEST_ORDER - 1);
++            d[0] = 1 + (int)testrand_int(EXHAUSTIVE_TEST_ORDER - 1);
++            d[1] = 1 + (int)testrand_int(EXHAUSTIVE_TEST_ORDER - 1);
++            test_exhaustive_fullagg_session(ctx, group, keypair, xonly_pubkey, xonly_pubkey_bytes, parity, 2, d, r1, r2);
++#endif
++        }
++    }
++}
++
++#endif
+diff --git a/src/tests_exhaustive.c b/src/tests_exhaustive.c
+index 5c0bce18..b8a82152 100644
+--- a/src/tests_exhaustive.c
++++ b/src/tests_exhaustive.c
+@@ -362,6 +362,10 @@ static void test_exhaustive_sign(const secp256k1_context *ctx, const secp256k1_g
+ #include "modules/ellswift/tests_exhaustive_impl.h"
+ #endif
+ 
++#ifdef ENABLE_MODULE_FULLAGG
++#include "modules/fullagg/tests_exhaustive_impl.h"
++#endif
++
+ int main(int argc, char** argv) {
+     int i;
+     secp256k1_gej groupj[EXHAUSTIVE_TEST_ORDER];
+@@ -456,6 +460,9 @@ int main(int argc, char** argv) {
+ #ifdef ENABLE_MODULE_SCHNORRSIG
+         test_exhaustive_schnorrsig(ctx);
+ #endif
++#ifdef ENABLE_MODULE_FULLAGG
++        test_exhaustive_fullagg(ctx, group);
++#endif
+ #ifdef ENABLE_MODULE_ELLSWIFT
+     /* The ellswift algorithm does have additional edge cases when operating on
+      * curves of even order, which are not included in the code as secp256k1 is
