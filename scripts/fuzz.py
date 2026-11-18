@@ -13,7 +13,8 @@ and reports every case where the two disagree.
 
 reference.py takes parsed points and scalars. The byte arrays are parsed here
 the way bip-0459/run_test_vectors.py parses them, so a parse failure counts as
-a failure of the algorithm.
+a failure of the algorithm. Lengths are checked here first: secp256k1lab
+accepts scalars of any length and asserts on the length of a public key.
 
 With --secp256k1, the same cases also run through libsecp256k1's fullagg
 module, using the driver built from scripts/fuzz_secp256k1.c. The C API cannot
@@ -133,18 +134,26 @@ class Gen:
     def parse_secnonce(self, b):
         if len(b) != 64:
             raise ValueError("secnonce must be 64 bytes")
-        return self.Scalar.from_bytes_checked(b[:32]), self.Scalar.from_bytes_checked(b[32:])
+        return self.scalar(b[:32]), self.scalar(b[32:])
 
     def parse_pks(self, pks):
+        if any(len(b) != 32 for b in pks):
+            raise ValueError("public keys must be 32 bytes")
         return [self.GE.from_bytes_xonly(b) for b in pks]
 
+    def scalar(self, b):
+        # secp256k1lab's from_bytes_checked accepts any length
+        if len(b) != 32:
+            raise ValueError("scalars must be 32 bytes")
+        return self.Scalar.from_bytes_checked(b)
+
     def run_ref(self, case):
-        ref, Scalar = self.ref, self.Scalar
+        ref = self.ref
         kind = case[0]
         try:
             if kind == "G":
                 _, rand, sk, extra = case
-                sk = Scalar.from_bytes_checked(sk) if sk is not None else None
+                sk = self.scalar(sk) if sk is not None else None
                 (r1, r2), (R1, R2) = ref.NonceGenInternal(rand, sk, extra)
                 return (r1.to_bytes() + r2.to_bytes()).hex() + ":" + \
                     (R1.to_bytes_compressed() + R2.to_bytes_compressed()).hex()
@@ -153,18 +162,18 @@ class Gen:
                 return (R1.to_bytes_compressed() + R2.to_bytes_compressed()).hex()
             if kind == "S":
                 _, secnonce, sk, m, aggnonce, pks, msgs, pubnonces = case
-                return ref.Sign(self.parse_secnonce(secnonce), Scalar.from_bytes_checked(sk), m,
+                return ref.Sign(self.parse_secnonce(secnonce), self.scalar(sk), m,
                                 self.parse_nonce(aggnonce), self.parse_pks(pks), msgs,
                                 [self.parse_nonce(b) for b in pubnonces]).to_bytes().hex()
             if kind == "A":
                 _, aggnonce, pks, msgs, pubnonces, psigs = case
                 R, s = ref.SigAgg(self.parse_nonce(aggnonce), self.parse_pks(pks), msgs,
                                   [self.parse_nonce(b) for b in pubnonces],
-                                  [Scalar.from_bytes_checked(b) for b in psigs])
+                                  [self.scalar(b) for b in psigs])
                 return (R.to_bytes_xonly() + s.to_bytes()).hex()
             if kind == "P":
                 _, psig, pks, msgs, pubnonces, i = case
-                ok = ref.PartialSigVerify(Scalar.from_bytes_checked(psig), self.parse_pks(pks),
+                ok = ref.PartialSigVerify(self.scalar(psig), self.parse_pks(pks),
                                           msgs, [self.parse_nonce(b) for b in pubnonces], i)
                 return "true" if ok else "false"
             if kind == "V":
@@ -172,14 +181,14 @@ class Gen:
                 if len(sig) != 64:
                     raise ValueError("signature must be 64 bytes")
                 R = self.GE.from_bytes_xonly(sig[:32])
-                s = Scalar.from_bytes_checked(sig[32:])
+                s = self.scalar(sig[32:])
                 return "true" if ref.Verify(self.parse_pks(pks), msgs, (R, s)) else "false"
             if kind == "T":
                 _, sk, t, xonly = case
-                sk = Scalar.from_bytes_checked(sk)
+                sk = self.scalar(sk)
                 if sk == 0:
                     raise ValueError("secret key is zero")
-                t = Scalar.from_bytes_checked(t)
+                t = self.scalar(t)
                 outs = []
                 for fn, key in ((ref.TweakSK, sk), (ref.TweakPK, sk * self.G)):
                     try:
