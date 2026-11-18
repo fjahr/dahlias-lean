@@ -34,7 +34,7 @@ taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A ful
 
 **Is the binding game the paper's?** `bindExperiment` is the game of Fig. 11 with the random oracle of the unforgeability game: the adversary outputs two lists and one signature and wins if the lists differ and the signature verifies for both. The theorem counts the adversary's own oracle queries; the `2N` in the bound are the verifier's queries. It holds for groups of prime order.
 
-**What does the bound say?** With `q = qh + qs + 1`, the statement `adv * (adv / q - 1 / n) ≤ omdl + coll` gives `adv ≤ sqrt (q * (omdl + coll)) + q / n`. This is the bound of the paper's Theorem 2 up to the count of queries. The square root is the loss of the forking lemma.
+**What does the bound say?** With `q = qh + qs + 1`, the statement `adv * (adv / q - 1 / n) ≤ omdl + coll` gives `adv ≤ sqrt (q * (omdl + coll)) + q / n` (`unforgeable_sqrt`). This is the bound of the paper's Theorem 2 up to the count of queries. The square root is the loss of the forking lemma.
 
 ## What the theorem does not say
 
@@ -42,7 +42,6 @@ taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A ful
 - The game is for lists of at most `N` entries, with `N < n`.
 - Public keys are x-coordinates in the field and messages come from a finite type. The byte encodings are not part of the security statement. `Dahlias/Vectors.lean` runs the test vectors against the byte-level algorithms, `Dahlias/BytesCorrectness.lean` proves their correctness, and `scripts/fuzz.py` compares them with the Python reference and with libsecp256k1.
 - Nonces are uniform. BIP 459's `NonceGen` derives them from a random value with a tagged hash; that step is not modelled.
-- `secp256k1_strongly_binding` takes as a hypothesis that secp256k1 has prime order. The pinned dependencies do not prove this fact.
 
 ## Machine checks
 

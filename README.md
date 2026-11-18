@@ -10,8 +10,9 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 
 | Theorem | File | Statement |
 | --- | --- | --- |
-| `unforgeable`, `secp256k1_unforgeable` | `Dahlias/Unforgeability.lean`, `Dahlias/Secp256k1.lean` | A forger with success probability `adv`, at most `qh` random oracle queries and `qs` signing sessions gives an AOMDL adversary and a collision finder with `adv * (adv / (qh + qs + 1) - 1 / n) ≤ omdl + coll`. |
+| `unforgeable`, `unforgeable_sqrt`, `secp256k1_unforgeable` | `Dahlias/Unforgeability.lean`, `Dahlias/Secp256k1.lean` | A forger with success probability `adv`, at most `qh` random oracle queries and `qs` signing sessions gives an AOMDL adversary and a collision finder with `adv * (adv / q - 1 / n) ≤ omdl + coll` for `q = qh + qs + 1`, and so `adv ≤ sqrt (q * (omdl + coll)) + q / n`. |
 | `strongly_binding`, `secp256k1_strongly_binding` | `Dahlias/Binding.lean`, `Dahlias/Secp256k1.lean` | An adversary with at most `qh` random oracle queries finds a signature that is valid for two different lists of at most `N` entries with probability at most `(qh + 2N)² / n`. |
+| `secp256k1_primeOrder` | `Dahlias/PrimeOrder.lean` | secp256k1 has exactly `n` points. |
 | `localFork_prob` | `Dahlias/LocalFork.lean`, `Dahlias/Fork.lean` | The local forking lemma of Bellare, Dai and Li. |
 | `verify_honest` | `Dahlias/Correctness.lean`, `Dahlias/BytesCorrectness.lean` | An honest session produces a signature that verifies, for the model and for the byte-level algorithms. |
 | `verify_sigAgg_of_partialSigVerify` | `Dahlias/Correctness.lean` | Partial signatures that pass `PartialSigVerify` aggregate to a valid signature. |

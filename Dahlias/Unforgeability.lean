@@ -15,8 +15,8 @@ that the AOMDL adversary `reduction A` wins with `2⋅qs + 1` challenges, and
 `hash_BIP0459/noncecoef`.
 
 This is Theorem 2 of the DahLIAS paper (ePrint 2025/692) for the algorithms of
-BIP 459, in the form before solving for `adv`:
-`adv ≤ sqrt (q * (omdl + coll)) + q / n` follows for `q = qh + qs + 1`.
+BIP 459, in the form before solving for `adv`. `unforgeable_sqrt` is the
+solved form: `adv ≤ sqrt (q * (omdl + coll)) + q / n` for `q = qh + qs + 1`.
 The challenge hash is a random oracle; the nonce coefficient hash is a fixed
 function and only has to be collision resistant.
 
@@ -116,5 +116,36 @@ theorem unforgeable (hN : N < n) (qh : ℕ) (hA : ∀ coins P, HashBound (A coin
   unfold omdlAdvantage collisionAdvantage
   rw [← he]
   exact h
+
+/-- From the product form of a forking bound to the square root form. -/
+theorem le_sqrt_of_fork_bound {adv q N ε : ℝ} (hq : 0 < q) (hN : 0 < N)
+    (h : adv * (adv / q - 1 / N) ≤ ε) : adv ≤ Real.sqrt (q * ε) + q / N := by
+  by_contra hlt
+  push Not at hlt
+  have hs : 0 ≤ Real.sqrt (q * ε) := Real.sqrt_nonneg _
+  have hqN : 0 < q / N := div_pos hq hN
+  have h1 : Real.sqrt (q * ε) < adv - q / N := by linarith
+  have h2 : Real.sqrt (q * ε) < adv := by linarith
+  have hprod : q * ε < adv * (adv - q / N) := by
+    have hsq : q * ε ≤ Real.sqrt (q * ε) * Real.sqrt (q * ε) := by
+      by_cases hε : 0 ≤ q * ε
+      · rw [Real.mul_self_sqrt hε]
+      · have := Real.sqrt_eq_zero_of_nonpos (le_of_not_ge hε)
+        rw [this]; nlinarith
+    nlinarith
+  have heq : adv * (adv / q - 1 / N) = adv * (adv - q / N) / q := by
+    field_simp
+  rw [heq, div_le_iff₀ hq] at h
+  linarith
+
+/-- **BIP 459 is unforgeable under AOMDL**, in the form of the paper's Theorem 2:
+with `q = qh + qs + 1`, the forger's success probability is at most
+`sqrt (q * (omdl + coll)) + q / n`. -/
+theorem unforgeable_sqrt (hN : N < n) (qh : ℕ) (hA : ∀ coins P, HashBound (A coins P) qh) :
+    forgeAdvantage C nonceCoef N qs A ≤
+      Real.sqrt ((qh + qs + 1 : ℕ) * (omdlAdvantage C (2 * qs + 1) (reduction C nonceCoef N qs A) +
+        collisionAdvantage C nonceCoef N qs A)) + (qh + qs + 1 : ℕ) / n :=
+  le_sqrt_of_fork_bound (Nat.cast_pos.mpr (Nat.succ_pos _))
+    (Nat.cast_pos.mpr (Fact.out : n.Prime).pos) (unforgeable C nonceCoef N qs A hN qh hA)
 
 end Dahlias.Security

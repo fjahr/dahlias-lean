@@ -12,6 +12,7 @@ import Dahlias.Fork
 import Dahlias.Security
 import Dahlias.Unforgeability
 import Dahlias.Binding
+import Dahlias.PrimeOrder
 import Dahlias.Tweaks
 import Dahlias.Secp256k1
 import Dahlias.Examples
