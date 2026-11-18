@@ -19,6 +19,8 @@ SECTIONS = [
     ("Correctness, for every choice of the hash functions",
      ["Dahlias.verify_honest", "Dahlias.verify_sigAgg_of_partialSigVerify",
       "Dahlias.partialSigVerify_sign", "Dahlias.tweakPK_mulG"]),
+    ("Signing by a single party that holds all keys",
+     ["Dahlias.verify_signSingle", "Dahlias.verify_unique", "Dahlias.sigAgg_eq_signSingle"]),
     ("Correctness on bytes (inherits taproot-lean's `native_decide` computation of `n·G = 0`)",
      ["Dahlias.Bytes.verify_honest"]),
     ("Test vectors (compiled evaluation)",

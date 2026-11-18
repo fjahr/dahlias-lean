@@ -1,5 +1,6 @@
 import Dahlias.Basic
 import Dahlias.Correctness
+import Dahlias.Single
 import Dahlias.Bytes
 import Dahlias.BytesCurve
 import Dahlias.BytesCorrectness
@@ -52,6 +53,20 @@ set_option linter.style.longLine false
 /-- info: 'Dahlias.tweakPK_mulG' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Dahlias.tweakPK_mulG
+
+/-! ## Signing by a single party that holds all keys -/
+
+/-- info: 'Dahlias.verify_signSingle' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.verify_signSingle
+
+/-- info: 'Dahlias.verify_unique' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.verify_unique
+
+/-- info: 'Dahlias.sigAgg_eq_signSingle' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.sigAgg_eq_signSingle
 
 /-! ## Correctness on bytes (inherits taproot-lean's `native_decide` computation of `n·G = 0`) -/
 
