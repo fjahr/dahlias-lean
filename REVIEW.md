@@ -26,7 +26,7 @@ taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A ful
 
 **Does the reduction cheat?** `reduction` has the type `OmdlAdversary`: it is an oracle algorithm for the AOMDL game and gets nothing else. It wins only if it makes fewer discrete logarithm queries than it received challenges, so the query count is part of the statement. `collider` is a function of a sample; it holds the secret key and runs the game by itself, which a collision finder may do.
 
-**What is random?** The secret key and the session nonces are uniform nonzero scalars. The challenge hash is a uniform table on inputs with lists of at most `N` entries. The reduction's coins contain such a table: it samples the random oracle up front. A lazily sampling reduction behaves the same and is efficient; the theorem does not say so, because it has no notion of running time.
+**What is random?** The secret key and the session nonces are uniform nonzero scalars. The challenge hash is a uniform table on inputs with lists of at most `N` entries. `forgeAdvantage_eq_lazy` proves that the game has the same advantage when the oracle answers every new query with the next of `qh + qs + N` uniform scalars. The reduction's coins still contain a whole table. A reduction that samples lazily behaves the same by the same argument, but that is not proven for it, and the theorem has no notion of running time.
 
 **What is the nonce coefficient hash?** A fixed function, `nonceCoef`. The theorem holds for every such function and measures how often `collider` outputs a collision of it. This is the usual way to state collision resistance for an unkeyed hash function.
 

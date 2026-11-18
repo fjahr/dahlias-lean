@@ -34,6 +34,8 @@ SECTIONS = [
      ["Dahlias.Security.unforgeable", "Dahlias.Security.unforgeable_sqrt",
       "Dahlias.Security.secp256k1_unforgeable",
       "Dahlias.Security.tweakSK_affine", "Dahlias.Security.guesser_advantage_pos"]),
+    ("Lazy sampling of the random oracle",
+     ["Dahlias.QTree.prob_eval_eq_lazy", "Dahlias.Security.forgeAdvantage_eq_lazy"]),
     ("Strong binding",
      ["Dahlias.Security.strongly_binding", "Dahlias.Security.secp256k1_strongly_binding",
       "Dahlias.secp256k1_primeOrder"]),

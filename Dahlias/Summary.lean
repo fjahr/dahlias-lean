@@ -12,6 +12,8 @@ import Dahlias.QueryRun
 import Dahlias.Fork
 import Dahlias.Security
 import Dahlias.Unforgeability
+import Dahlias.Lazy
+import Dahlias.LazyGame
 import Dahlias.Binding
 import Dahlias.PrimeOrder
 import Dahlias.Tweaks
@@ -187,6 +189,16 @@ info: 'Dahlias.Security.secp256k1_unforgeable' depends on axioms: [propext,
 /-- info: 'Dahlias.Security.guesser_advantage_pos' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Dahlias.Security.guesser_advantage_pos
+
+/-! ## Lazy sampling of the random oracle -/
+
+/-- info: 'Dahlias.QTree.prob_eval_eq_lazy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.QTree.prob_eval_eq_lazy
+
+/-- info: 'Dahlias.Security.forgeAdvantage_eq_lazy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.forgeAdvantage_eq_lazy
 
 /-! ## Strong binding -/
 

@@ -17,6 +17,7 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 | `localFork_prob` | `Dahlias/LocalFork.lean`, `Dahlias/Fork.lean` | The local forking lemma of Bellare, Dai and Li. |
 | `verify_honest` | `Dahlias/Correctness.lean`, `Dahlias/BytesCorrectness.lean` | An honest session produces a signature that verifies, for the model and for the byte-level algorithms. |
 | `verify_sigAgg_of_partialSigVerify` | `Dahlias/Correctness.lean` | Partial signatures that pass `PartialSigVerify` aggregate to a valid signature. |
+| `prob_eval_eq_lazy`, `forgeAdvantage_eq_lazy` | `Dahlias/Lazy.lean`, `Dahlias/LazyGame.lean` | A uniform table is a lazily sampled oracle. The unforgeability game has the same advantage when every new challenge hash query gets the next of `qh + qs + N` uniform scalars. |
 | `verify_signSingle`, `sigAgg_eq_signSingle` | `Dahlias/Single.lean` | Signing by a single party that holds all keys, with one nonce: the output verifies and equals the protocol's signature for the same nonce `R`. |
 | `tweakPK_mulG`, `tweakSK_affine` | `Dahlias/Correctness.lean`, `Dahlias/Tweaks.lean` | `TweakSK` and `TweakPK` agree, and BIP 459's tweaks are tweaks of the security game. |
 | `evenScalar_of_nonce_reuse`, `evenScalar_of_three_sessions`, `msgSwap_wins` | `Dahlias/Attacks.lean` | Reusing a secret nonce reveals the secret key, and without the message check in `Sign` a coordinator can make the signer sign any message. |
