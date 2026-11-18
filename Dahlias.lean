@@ -10,6 +10,4 @@ import Dahlias.Alg
 import Dahlias.QueryRun
 import Dahlias.Fork
 import Dahlias.Security
-import Dahlias.Proofs.Game
-import Dahlias.Proofs.GameBound
-import Dahlias.Proofs.ForkGame
+import Dahlias.Unforgeability
