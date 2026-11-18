@@ -47,7 +47,8 @@ the signature verifies for `L` and `L` contains an entry `(pk*, m)`, with
 `m` for the list `L` under the key `pk*`.
 
 **Tweaks.** A tweak is an affine map `x ↦ α + β⋅x`. BIP 459's plain and x-only
-tweaks, and any sequence of them, are of this form with `β = ±1`.
+tweaks, and any sequence of them, are of this form with `β = ±1`
+(`Dahlias.Tweaks`).
 
 **Difference 1: the game records tweaked keys, not tweaks.** The paper records
 `(L, τ, m)` for every signing query and lets the forgery name any tweak `τ`

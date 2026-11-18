@@ -9,7 +9,6 @@ nonces of every session as a function of the secret key.
 -/
 
 set_option linter.unusedSectionVars false
-set_option linter.flexible false
 
 namespace Dahlias.Security
 
@@ -23,6 +22,7 @@ variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E
 abbrev entries (k : ℕ) (cache : List (CloseRec n E X M)) : List (CloseRec n E X M) :=
   cache.filter fun r => decide (r.k = k)
 
+set_option linter.flexible false in
 theorem run_solveSession {k : ℕ} (hk : k < qs) (cache : List (CloseRec n E X M)) (d : ℕ)
     (hsig : ∀ r ∈ cache, RecSig C qs xu ν r)
     (hb : ∀ a a' rest, entries k cache = a :: a' :: rest → a.Rb.2 ≠ a'.Rb.2) :

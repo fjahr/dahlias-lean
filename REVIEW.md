@@ -1,0 +1,48 @@
+# Reviewing dahlias-lean
+
+Lean checks the proofs. A reviewer checks that the statements say what they should. Everything under `Dahlias/Proofs/` can stay unread, because a wrong proof does not compile. A wrong definition does.
+
+## What to read
+
+About 600 lines decide whether the results mean anything.
+
+1. `Dahlias/Basic.lean`, all of it. Compare the algorithms with BIP 459. The header lists the modelling choices.
+2. `Dahlias/Security.lean`, all of it: the unforgeability game, the AOMDL game, and the two places where the game differs from the paper's.
+3. `Dahlias/Alg.lean`, the definitions `Alg`, `bind` and `run`, and `Dahlias/Prob.lean`, the definition `prob`.
+4. `Dahlias/Unforgeability.lean`, the statement of `unforgeable` and the definition `collisionAdvantage`.
+5. `Dahlias/Proofs/Reduction.lean`, the types of `reduction` and `collider`.
+
+taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A full review reads those definitions too.
+
+## Questions to ask
+
+**Is the game the paper's?** `forgeExperiment` is the co-EUF-CMA-TK game of the DahLIAS paper (Fig. 5) with two changes. Both are described in the header of `Dahlias/Security.lean`.
+
+- The game records the tweaked x-only public key of every signature, where the paper records the tweak. With x-only keys two different tweaks can give the same key without revealing anything: `(α, β)` and `(-α, -β)` always do. The paper's game would count a signature under one of them as a forgery under the other.
+- A `Sign` call that fails leaves the session open. The paper closes it. The adversary here has more freedom.
+
+**Is the adversary restricted?** An `Adversary` is any function from coins of a finite type and the public key point to an oracle algorithm. It chooses all other public keys, all messages, all nonces of the other signers, the aggregate nonce and the tweaks, and it may leave sessions open and interleave them. It is not algebraic. The hypothesis `HashBound` bounds its random oracle queries; the number of sessions is bounded by the game.
+
+**Does the reduction cheat?** `reduction` has the type `OmdlAdversary`: it is an oracle algorithm for the AOMDL game and gets nothing else. It wins only if it makes fewer discrete logarithm queries than it received challenges, so the query count is part of the statement. `collider` is a function of a sample; it holds the secret key and runs the game by itself, which a collision finder may do.
+
+**What is random?** The secret key and the session nonces are uniform nonzero scalars. The challenge hash is a uniform table on inputs with lists of at most `N` entries. The reduction's coins contain such a table: it samples the random oracle up front. A lazily sampling reduction behaves the same and is efficient; the theorem does not say so, because it has no notion of running time.
+
+**What is the nonce coefficient hash?** A fixed function, `nonceCoef`. The theorem holds for every such function and measures how often `collider` outputs a collision of it. This is the usual way to state collision resistance for an unkeyed hash function.
+
+**Is the theorem vacuous?** `Dahlias/Examples.lean` has a forger that satisfies `HashBound` and wins with positive probability. `Dahlias/Secp256k1.lean` instantiates the theorem for secp256k1.
+
+**What does the bound say?** With `q = qh + qs + 1`, the statement `adv * (adv / q - 1 / n) ≤ omdl + coll` gives `adv ≤ sqrt (q * (omdl + coll)) + q / n`. This is the bound of the paper's Theorem 2 up to the count of queries. The square root is the loss of the forking lemma.
+
+## What the theorem does not say
+
+- No theorem bounds running time. `reduction` runs the forger twice; that is visible in its definition.
+- The game is for lists of at most `N` entries, with `N < n`.
+- Public keys are x-coordinates in the field and messages come from a finite type. The byte encodings are not part of the security statement. `Dahlias/Vectors.lean` runs the test vectors against the byte-level algorithms, `Dahlias/BytesCorrectness.lean` proves their correctness, and `scripts/fuzz.py` compares them with the Python reference and with libsecp256k1.
+- Nonces are uniform. BIP 459's `NonceGen` derives them from a random value with a tagged hash; that step is not modelled.
+- Strong binding (Theorem 3 of the paper) is not formalized.
+
+## Machine checks
+
+- `lake build` compiles every proof and fails if the axioms of a main result change (`Dahlias/Summary.lean`).
+- `scripts/check.sh` searches the sources for `sorry`, new axioms, unsafe code and stray `native_decide`.
+- `lake env leanchecker Dahlias` replays every project module in the kernel, without the elaborator.
