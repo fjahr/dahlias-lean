@@ -15,6 +15,7 @@ import Dahlias.Binding
 import Dahlias.PrimeOrder
 import Dahlias.Tweaks
 import Dahlias.Secp256k1
+import Dahlias.BytesSecurity
 import Dahlias.Examples
 import Dahlias.Attacks
 
@@ -194,6 +195,44 @@ info: 'Dahlias.secp256k1_primeOrder' depends on axioms: [propext,
 -/
 #guard_msgs in
 #print axioms Dahlias.secp256k1_primeOrder
+
+/-! ## Security for 32-byte keys and messages -/
+
+/--
+info: 'Dahlias.Security.bytes_unforgeable' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Dahlias.Security.bytes_unforgeable
+
+/--
+info: 'Dahlias.Security.bytes_strongly_binding' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Dahlias.Security.bytes_strongly_binding
+
+/--
+info: 'Dahlias.Security.verify_val' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Dahlias.Security.verify_val
+
+/--
+info: 'Dahlias.Security.sign_val' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Dahlias.Security.sign_val
 
 /-! ## Attacks on misuse and on a weakened `Sign` -/
 

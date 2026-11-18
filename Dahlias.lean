@@ -15,6 +15,7 @@ import Dahlias.Binding
 import Dahlias.PrimeOrder
 import Dahlias.Tweaks
 import Dahlias.Secp256k1
+import Dahlias.BytesSecurity
 import Dahlias.Examples
 import Dahlias.Attacks
 import Dahlias.Summary

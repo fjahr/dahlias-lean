@@ -40,7 +40,7 @@ taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A ful
 
 - No theorem bounds running time. `reduction` runs the forger twice; that is visible in its definition.
 - The game is for lists of at most `N` entries, with `N < n`.
-- Public keys are x-coordinates in the field and messages come from a finite type. The byte encodings are not part of the security statement. `Dahlias/Vectors.lean` runs the test vectors against the byte-level algorithms, `Dahlias/BytesCorrectness.lean` proves their correctness, and `scripts/fuzz.py` compares them with the Python reference and with libsecp256k1.
+- In `bytes_unforgeable` public keys and messages are 32-byte arrays and the nonce coefficient hash is the BIP's. The public nonces stay curve points: the encoding of nonces as 66 bytes, the range checks on scalars and the length checks are outside the security statement. `Dahlias/Vectors.lean` runs the test vectors against the byte-level algorithms, `Dahlias/BytesCorrectness.lean` proves their correctness, and `scripts/fuzz.py` compares them with the Python reference and with libsecp256k1.
 - Nonces are uniform. BIP 459's `NonceGen` derives them from a random value with a tagged hash; that step is not modelled.
 
 ## Machine checks
