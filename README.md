@@ -33,7 +33,11 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 - `Dahlias/Bytes.lean`: the algorithms on byte arrays, with the BIP's encodings, range checks and SHA-256 tagged hashes.
 - `Dahlias/Security.lean`: the unforgeability game and the AOMDL game.
 - `Dahlias/Alg.lean`, `Dahlias/QueryRun.lean`, `Dahlias/Prob.lean`: deterministic oracle algorithms and probabilities on finite sample spaces.
-- `Dahlias/Proofs/`: the proof of `unforgeable`.
+- `Dahlias/Proofs/`: the reduction to AOMDL, for the game in which a single-party signature uses a derived nonce.
+- `Dahlias/Derived.lean`: from that game to the game with a uniform nonce.
+- `Dahlias/Lazy.lean`, `Dahlias/Second.lean`, `Dahlias/NonceProb.lean`: lazily sampled oracles, algorithms with a second oracle, and the counting lemmas for oracle values at secret points.
+- `Dahlias/NonceGen.lean`, `Dahlias/NonceGenSk.lean`: the game with nonces derived as in `NonceGen`.
+- `Dahlias/LazyReduction.lean`: the reduction with a lazily sampled random oracle.
 - `Dahlias/Examples.lean`: a forger that wins the game by guessing the key, as a check that the definitions are not vacuous.
 
 The curve, SHA-256 and BIP 340 come from [taproot-lean](https://github.com/dni/taproot-lean). The security proof depends only on Mathlib and on taproot-lean's curve interface.
