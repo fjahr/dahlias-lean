@@ -14,6 +14,8 @@ import Dahlias.Security
 import Dahlias.Unforgeability
 import Dahlias.Lazy
 import Dahlias.LazyGame
+import Dahlias.NonceProb
+import Dahlias.NonceGen
 import Dahlias.Binding
 import Dahlias.PrimeOrder
 import Dahlias.Tweaks
