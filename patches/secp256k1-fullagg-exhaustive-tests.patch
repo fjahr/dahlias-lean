@@ -11,10 +11,10 @@ index 29fe41c6..c6aad7d9 100644
  noinst_HEADERS += src/modules/fullagg/bench_impl.h
 diff --git a/src/modules/fullagg/tests_exhaustive_impl.h b/src/modules/fullagg/tests_exhaustive_impl.h
 new file mode 100644
-index 00000000..02d9b202
+index 00000000..59e44a3d
 --- /dev/null
 +++ b/src/modules/fullagg/tests_exhaustive_impl.h
-@@ -0,0 +1,196 @@
+@@ -0,0 +1,247 @@
 +/***********************************************************************
 + * Distributed under the MIT software license, see the accompanying    *
 + * file COPYING or https://www.opensource.org/licenses/mit-license.php.*
@@ -34,11 +34,34 @@ index 00000000..02d9b202
 +#define FULLAGG_TRY(s, expected) ((s) == (unsigned)(expected) || (s) == ((unsigned)(expected) + 1) % EXHAUSTIVE_TEST_ORDER)
 +#endif
 +
-+/* Run one signing session of u <= 2 signers with secret keys d[i] and secret
++/* PartialSigVerify recomputes the aggregate nonce and the session values, so
++ * it must reject every partial signature of every signer when one of them
++ * fails. */
++static void test_exhaustive_fullagg_no_partial_sig(const secp256k1_context *ctx,
++                                                   const secp256k1_fullagg_pubnonce * const *pubnonce_ptr,
++                                                   const secp256k1_xonly_pubkey * const *pk_ptr,
++                                                   const unsigned char * const *msg_ptr, size_t u) {
++    size_t i;
++    unsigned s;
++
++    for (i = 0; i < u; i++) {
++        for (s = 0; s < EXHAUSTIVE_TEST_ORDER; s++) {
++            secp256k1_fullagg_partial_sig psig;
++            secp256k1_scalar ss = s;
++            unsigned char buf[32];
++            secp256k1_scalar_get_b32(buf, &ss);
++            CHECK(secp256k1_fullagg_partial_sig_parse(ctx, &psig, buf));
++            CHECK(!secp256k1_fullagg_partial_sig_verify(ctx, &psig, pubnonce_ptr, pk_ptr, msg_ptr, u, i));
++        }
++    }
++}
++
++/* Run one signing session of u <= 3 signers with secret keys d[i] and secret
 + * nonces (r1[i], r2[i]), all given as discrete logarithms, and compare every
 + * step with the result computed on the discrete logarithms:
 + *  - NonceAgg fails exactly if an aggregate nonce is the point at infinity.
 + *  - GetSessionValues fails exactly if R = R1 + b*R2 is the point at infinity.
++ *  - In both cases PartialSigVerify rejects every partial signature.
 + *  - Sign fails exactly if another signer has the same R2.
 + *  - Otherwise the partial signature is e*(r1 + b*r2) + c*d', it is the only
 + *    value PartialSigVerify accepts, and the sum of the partial signatures is
@@ -48,16 +71,16 @@ index 00000000..02d9b202
 +                                            const secp256k1_xonly_pubkey *xonly_pubkeys,
 +                                            unsigned char (*xonly_pubkey_bytes)[32], const int *parities,
 +                                            size_t u, const int *d, const int *r1, const int *r2) {
-+    secp256k1_fullagg_secnonce secnonce[2];
-+    secp256k1_fullagg_pubnonce pubnonce[2];
-+    const secp256k1_fullagg_pubnonce *pubnonce_ptr[2];
-+    const secp256k1_xonly_pubkey *pk_ptr[2];
-+    unsigned char msg[2][32];
-+    const unsigned char *msg_ptr[2];
++    secp256k1_fullagg_secnonce secnonce[3];
++    secp256k1_fullagg_pubnonce pubnonce[3];
++    const secp256k1_fullagg_pubnonce *pubnonce_ptr[3];
++    const secp256k1_xonly_pubkey *pk_ptr[3];
++    unsigned char msg[3][32];
++    const unsigned char *msg_ptr[3];
 +    secp256k1_fullagg_aggnonce aggnonce;
 +    secp256k1_fullagg_session session;
-+    secp256k1_fullagg_partial_sig psig[2];
-+    const secp256k1_fullagg_partial_sig *psig_ptr[2];
++    secp256k1_fullagg_partial_sig psig[3];
++    const secp256k1_fullagg_partial_sig *psig_ptr[3];
 +    unsigned char aggnonce_ser[66], noncehash[32], sig64[64];
 +    secp256k1_scalar b;
 +    int a1 = 0, a2 = 0, k, s_sum = 0, any_fail = 0;
@@ -87,6 +110,7 @@ index 00000000..02d9b202
 +    /* NonceAgg */
 +    if (a1 == 0 || a2 == 0) {
 +        CHECK(!secp256k1_fullagg_nonce_agg(ctx, &aggnonce, pubnonce_ptr, u));
++        test_exhaustive_fullagg_no_partial_sig(ctx, pubnonce_ptr, pk_ptr, msg_ptr, u);
 +        return;
 +    }
 +    CHECK(secp256k1_fullagg_nonce_agg(ctx, &aggnonce, pubnonce_ptr, u));
@@ -98,6 +122,7 @@ index 00000000..02d9b202
 +    k = (a1 + (int)b * a2) % EXHAUSTIVE_TEST_ORDER;
 +    if (k == 0) {
 +        CHECK(!secp256k1_fullagg_session_init(ctx, &session, &aggnonce, pk_ptr, msg_ptr, pubnonce_ptr, u));
++        test_exhaustive_fullagg_no_partial_sig(ctx, pubnonce_ptr, pk_ptr, msg_ptr, u);
 +        return;
 +    }
 +    CHECK(secp256k1_fullagg_session_init(ctx, &session, &aggnonce, pk_ptr, msg_ptr, pubnonce_ptr, u));
@@ -156,7 +181,8 @@ index 00000000..02d9b202
 +    secp256k1_xonly_pubkey xonly_pubkey[EXHAUSTIVE_TEST_ORDER - 1];
 +    int parity[EXHAUSTIVE_TEST_ORDER - 1];
 +    unsigned char xonly_pubkey_bytes[EXHAUSTIVE_TEST_ORDER - 1][32];
-+    int d[2], r1[2], r2[2];
++    int d[3], r1[3], r2[3];
++    int lo, hi;
 +    uint64_t iter = 0;
 +    unsigned i;
 +
@@ -206,6 +232,31 @@ index 00000000..02d9b202
 +            d[1] = 1 + (int)testrand_int(EXHAUSTIVE_TEST_ORDER - 1);
 +            test_exhaustive_fullagg_session(ctx, group, keypair, xonly_pubkey, xonly_pubkey_bytes, parity, 2, d, r1, r2);
 +#endif
++        }
++    }
++
++    /* Three signers: all pairs of second nonces of the first two, with random
++     * first nonces and keys. For the smallest group also all second nonces of
++     * the third. Two signers whose second nonces are negations of each other
++     * only get past NonceAgg with a third signer, and Sign must not take the
++     * negation for a second occurrence of its own nonce. */
++    for (r2[0] = 1; r2[0] < EXHAUSTIVE_TEST_ORDER; r2[0]++) {
++        for (r2[1] = 1; r2[1] < EXHAUSTIVE_TEST_ORDER; r2[1]++) {
++            if (skip_section(&iter)) continue;
++#if EXHAUSTIVE_TEST_ORDER <= 13
++            lo = 1;
++            hi = EXHAUSTIVE_TEST_ORDER;
++#else
++            lo = 1 + (int)testrand_int(EXHAUSTIVE_TEST_ORDER - 1);
++            hi = lo + 1;
++#endif
++            for (r2[2] = lo; r2[2] < hi; r2[2]++) {
++                for (i = 0; i < 3; i++) {
++                    r1[i] = 1 + (int)testrand_int(EXHAUSTIVE_TEST_ORDER - 1);
++                    d[i] = 1 + (int)testrand_int(EXHAUSTIVE_TEST_ORDER - 1);
++                }
++                test_exhaustive_fullagg_session(ctx, group, keypair, xonly_pubkey, xonly_pubkey_bytes, parity, 3, d, r1, r2);
++            }
 +        }
 +    }
 +}

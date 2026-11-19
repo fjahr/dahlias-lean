@@ -19,9 +19,10 @@
  *
  * Two kinds of cases test the state the C API keeps and have no counterpart in
  * the BIP's algorithms:
- * - `R`, with the fields of `S`: sign, then sign again with the same secnonce
- *   object. Prints the partial signature and whether the second call was
- *   rejected.
+ * - `R`, with the fields of `S`: sign, then sign with a secnonce object made
+ *   for another public key, then sign again with the first secnonce object.
+ *   Prints the partial signature, a note if the other key was accepted, and
+ *   whether the last call was rejected.
  * - `X`, with the fields of `S` and a second set of lists: initialize the
  *   session with the first lists and sign with the second. */
 #include <stdio.h>
@@ -124,8 +125,12 @@ static void do_noncegen(char *rand_s, char *sk_s, char *extra_s) {
     if (unhex(rand_s, rand, 32) != 32 || (has_sk && unhex(sk_s, sk, 32) != 32) || (elen != 0 && elen != 32)) {
         printf("SKIP\n"); return;
     }
-    /* The public key only ends up in the secnonce object; it is not hashed. */
-    if (!secp256k1_keypair_create(ctx, &kp, has_sk ? sk : one) || !secp256k1_keypair_xonly_pub(ctx, &pk, NULL, &kp)) {
+    /* The public key only ends up in the secnonce object; it is not hashed.
+     * An invalid sk has no public key, and nonce_gen must reject it with any. */
+    if (!secp256k1_keypair_create(ctx, &kp, has_sk ? sk : one) && !secp256k1_keypair_create(ctx, &kp, one)) {
+        printf("FAIL\n"); return;
+    }
+    if (!secp256k1_keypair_xonly_pub(ctx, &pk, NULL, &kp)) {
         printf("FAIL\n"); return;
     }
     if (!secp256k1_fullagg_nonce_gen(ctx, &sec, &pub, rand, has_sk ? sk : NULL, &pk, elen ? extra : NULL)) {
@@ -163,7 +168,9 @@ static int session(char *agg_s, char *pks_s, char *msgs_s, char *nonces_s, secp2
 }
 
 /* Sign with the lists that are loaded, in the given session. With `reuse`,
- * sign a second time with the same secnonce object and report the outcome. */
+ * sign a second time with the same secnonce object and report the outcome,
+ * and before that sign with a secnonce object that was made for another
+ * public key, which must fail. */
 static void sign_loaded(const unsigned char *secb, const unsigned char *sk, const unsigned char *m,
                         const secp256k1_fullagg_session *sess, int reuse) {
     unsigned char out[32];
@@ -184,6 +191,21 @@ static void sign_loaded(const unsigned char *secb, const unsigned char *sk, cons
             secp256k1_fullagg_partial_sig_serialize(ctx, out, &psig);
             print_hex(out, 32);
             if (reuse) {
+                secp256k1_fullagg_secnonce other;
+                secp256k1_keypair kp2;
+                secp256k1_pubkey pub2;
+                unsigned char sk2[32] = {0};
+                sk2[31] = 2;
+                if (memcmp(sk, sk2, 32) == 0) sk2[31] = 3;
+                if (secp256k1_keypair_create(ctx, &kp2, sk2) && secp256k1_keypair_pub(ctx, &pub2, &kp2)) {
+                    memcpy(&other.data[0], secnonce_magic, 4);
+                    memcpy(&other.data[4], secb, 64);
+                    memcpy(&other.data[68], pub2.data, 64);
+                    illegal = 0;
+                    if (secp256k1_fullagg_partial_sign(ctx, &psig2, &other, &kp, m, sess, pk_ptrs, msg_ptrs, nonce_ptrs, (size_t)pks_l.n, (size_t)j) && !illegal) {
+                        printf(":otherkey-accepted");
+                    }
+                }
                 illegal = 0;
                 if (secp256k1_fullagg_partial_sign(ctx, &psig2, &sec, &kp, m, sess, pk_ptrs, msg_ptrs, nonce_ptrs, (size_t)pks_l.n, (size_t)j) && !illegal) {
                     printf(":reuse-accepted");

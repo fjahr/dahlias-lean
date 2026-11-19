@@ -21,9 +21,10 @@ module, using the driver built from scripts/fuzz_secp256k1.c. The C API cannot
 express fields of the wrong length; the driver skips those cases.
 
 Two more kinds of cases test the state that only the C API keeps: signing
-twice with the same secnonce object (the second call must fail), and signing
-with lists that differ from the ones the session was initialized with (must
-fail unless the lists give the same nonce coefficient input).
+twice with the same secnonce object (the second call must fail) and with a
+secnonce object made for another public key (must fail), and signing with
+lists that differ from the ones the session was initialized with (must fail
+unless the lists give the same nonce coefficient input).
 
 The specification text, the reference and the C API disagree on some malformed
 inputs (see KNOWN below). Those cases are counted separately and do not fail
@@ -49,6 +50,8 @@ KNOWN = {
                "specification of Sign and SigAgg only decodes the second halves",
     "empty-nonceagg": "NonceAgg of an empty array: the specification fails, the reference "
                       "raises IndexError",
+    "noncegen-sk": "NonceGen with an sk that is zero or not below n; the specification xors any "
+                   "32 bytes, the reference takes a scalar, the C API rejects an invalid secret key",
     "secnonce-range": "a secret nonce scalar is zero or not below n; the specification fails, "
                       "the C secnonce object is opaque and partial_sign only rejects the "
                       "all-zero nonce and reduces mod n",
@@ -232,11 +235,16 @@ class Gen:
     # ---- cases; each returns (case, known-divergence label or None)
 
     def case_noncegen(self):
-        sk = None
-        if self.rng.random() < 0.6:
+        sk, known = None, None
+        r = self.rng.random()
+        if r < 0.55:
             sk = self.rng.choice(self.keys)
+        elif r < 0.65:
+            sk = self.edge()
+            if not 0 < int.from_bytes(sk, "big") < N:
+                known = "noncegen-sk"
         extra = self.rbytes(self.rng.choice([0, 0, 1, 32, 33, 100]))
-        return ("G", self.rbytes(32), sk, extra), None
+        return ("G", self.rbytes(32), sk, extra), known
 
     def case_nonceagg(self):
         s = self.session(1, 4)
@@ -271,8 +279,9 @@ class Gen:
         if r < 0.40:
             pass
         elif r < 0.46 and u >= 2 and j != i:
-            # the signer's R2 at a second index
-            c[7][j] = c[7][j][:33] + c[7][i][33:]
+            # the signer's R2 at a second index, or its negation, which is another nonce
+            own = c[7][i][33:]
+            c[7][j] = c[7][j][:33] + (own if self.rng.random() < 0.6 else flip_parity(own))
         elif r < 0.50:
             c[7][i] = c[7][i][:33] + self.point()
         elif r < 0.54:
@@ -441,10 +450,17 @@ class Gen:
             c[1].pop(); c[2].pop()
         elif r < 0.93:
             c[1].append(c[1][0]); c[2].append(c[2][0])
-        elif r < 0.97:
+        elif r < 0.96:
             c[2][j] = self.odd_len(32)
-        else:
+        elif r < 0.98:
             c[1].pop()
+        else:
+            # the empty list with s*G = R: accepted by a verifier that only skips
+            # the sum over the signers
+            k = self.rng.randrange(1, N)
+            if not (k * self.G).has_even_y():
+                k = N - k
+            c = ["V", [], [], (k * self.G).to_bytes_xonly() + b32(k)]
         return tuple(c), None
 
     def case_tweak(self):
@@ -479,6 +495,16 @@ def encode(case):
     return case[0] + " " + " ".join(enc(x) for x in case[1:])
 
 
+def make_cases(gen, count, with_c):
+    """The cases and their known-difference labels. `with_c` adds the kinds for the C API."""
+    makers = [gen.case_noncegen, gen.case_nonceagg, gen.case_sign, gen.case_sign, gen.case_sigagg,
+              gen.case_partial, gen.case_verify, gen.case_verify, gen.case_tweak]
+    if with_c:
+        makers += [gen.case_reuse, gen.case_session]
+    made = [makers[i % len(makers)]() for i in range(count)]
+    return [c for c, _ in made], [k for _, k in made]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("bip_dir", help="path to bips/bip-0459")
@@ -495,13 +521,7 @@ def main():
     from secp256k1lab import secp256k1 as lab
 
     gen = Gen(random.Random(args.seed), ref, lab)
-    makers = [gen.case_noncegen, gen.case_nonceagg, gen.case_sign, gen.case_sign, gen.case_sigagg,
-              gen.case_partial, gen.case_verify, gen.case_verify, gen.case_tweak]
-    if args.secp256k1:
-        makers += [gen.case_reuse, gen.case_session]
-    made = [makers[i % len(makers)]() for i in range(args.cases)]
-    cases = [c for c, _ in made]
-    known = [k for _, k in made]
+    cases, known = make_cases(gen, args.cases, bool(args.secp256k1))
     expected = [gen.run_ref(c) for c in cases]
 
     kinds = {}

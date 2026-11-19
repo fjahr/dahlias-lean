@@ -79,25 +79,27 @@ python3 scripts/fuzz.py path/to/bips/bip-0459 --no-lean --secp256k1 ./fuzz_secp2
 
 The C API cannot express fields of the wrong length. The driver skips those cases, about one in eight.
 
-With `--secp256k1` the script also tests the state that only the C API keeps. It signs twice with the same `secnonce` object and expects the second call to fail, and it signs with lists that differ from the ones the session was initialized with, which must fail unless both sets of lists give the same nonce coefficient input.
+With `--secp256k1` the script also tests the state that only the C API keeps. It signs twice with the same `secnonce` object and expects the second call to fail. It signs with a `secnonce` object made for another public key, which must fail. And it signs with lists that differ from the ones the session was initialized with, which must fail unless both sets of lists give the same nonce coefficient input.
 
-Runs so far found no mismatch: 5,000 cases against the Lean model (seed 1) and about 23,400 compared cases against libsecp256k1 (seeds 21 to 23).
+Runs so far found no mismatch. The latest was 6,600 cases with seed 31, of which the script compared 5,400 with the Lean model and 5,901 with libsecp256k1.
 
 The three implementations treat a few malformed inputs differently. The script counts these cases separately and lists them at the end of a run:
 
 - `Sign`, `SigAgg` and `GetSessionValues` as specified never decode the other signers' public keys or the first halves of their public nonces. `reference.py` and the C API take parsed objects, so they reject such inputs earlier. The Lean model follows the specification text.
 - `NonceAgg` of an empty array fails in the specification and raises `IndexError` in `reference.py`.
 - `Sign` as specified fails if a secret nonce scalar is zero or not below `n`. The C `secnonce` object is opaque, and `partial_sign` rejects only the all-zero nonce.
+- `NonceGen` as specified xors any 32 bytes given as `sk`. `reference.py` takes a scalar, and the C API rejects a secret key that is zero or not below `n`.
 
 ## Exhaustive test for the C module
 
 `patches/secp256k1-fullagg-exhaustive-tests.patch` adds a test of the `fullagg` module to libsecp256k1's exhaustive tests, which run the library on a group of order 13 or 199. It applies to the fork's branch `2026-11-half-full-agg` at commit `1f06bdf1`.
 
-The test runs signing sessions of one and two signers for all secret nonces and compares every step with the value computed on discrete logarithms:
+The test runs signing sessions of one, two and three signers and compares every step with the value computed on discrete logarithms:
 
 - `NonceAgg` fails exactly if an aggregate nonce is the point at infinity.
 - `GetSessionValues` fails exactly if `R = R1 + b⋅R2` is the point at infinity.
-- `Sign` fails exactly if another signer has the same `R2`.
+- In both cases `PartialSigVerify` rejects every partial signature.
+- `Sign` fails exactly if another signer has the same `R2`. A signer with the negation of that `R2` does not make it fail, which takes three signers to test, because two such nonces cancel in `NonceAgg`.
 - Otherwise the partial signature is `e⋅(r1 + b⋅r2) + c⋅d'`, it is the only value `PartialSigVerify` accepts, and the sum of the partial signatures is the only `s` for which `Verify` accepts `(x(R), s)`.
 
 These are the failure conditions of the Lean model (`Dahlias/Basic.lean`) and the statements of `Dahlias/Correctness.lean`. In a group of order 13 the failure cases, which never occur by chance on secp256k1, happen in more than a quarter of the two-signer sessions.
@@ -110,9 +112,42 @@ cmake --build build
 build/bin/exhaustive_tests
 ```
 
-The test passes on the groups of order 13 and 199. On order 13 the whole exhaustive suite takes about 13 seconds with it. On order 199 the new test alone takes about 8 seconds; there it tries all secret nonces of one signer and all pairs of second nonces of two signers, with random keys and first nonces. The order is a compile-time constant of `src/tests_exhaustive.c` (`-DEXHAUSTIVE_TEST_ORDER=199` for that file only), and the rest of the suite is slow on that group.
+The test passes on the groups of order 13 and 199. On order 13 the whole exhaustive suite takes about 15 seconds with it. On order 199 the new test alone takes about 26 seconds. There it tries all secret nonces of one signer, and all pairs of second nonces of two signers and of the first two of three signers, with the other values random. The order is a compile-time constant of `src/tests_exhaustive.c` (`-DEXHAUSTIVE_TEST_ORDER=199` for that file only), and the rest of the suite is slow on that group.
 
-Five mutations of the expected values (ignoring a duplicate `R2`, an infinite aggregate nonce or an infinite `R`, the sign of `R`, and accepting a second `s`) each make the test fail.
+Of the 57 mutants of the C module in the next section, the exhaustive tests notice 26.
+
+## Mutation test of the C module
+
+`scripts/mutate_secp256k1.py` makes 57 small changes to `src/modules/fullagg/main_impl.h`, one at a time: a check dropped, a hash input left out or swapped, a sign wrong. For each mutant it asks three sets of tests whether they notice:
+
+- the module's 12 unit tests, which include BIP 459's test vectors,
+- the cases of `scripts/fuzz.py`, where it compares the mutant's output with the unmutated library's,
+- the exhaustive tests on the group of order 13, with the patch above.
+
+```sh
+python3 scripts/mutate_secp256k1.py path/to/secp256k1 path/to/bips/bip-0459
+```
+
+The script works on an export of the checkout's `HEAD` in a temporary directory and takes about 25 minutes.
+
+At commit `1f06bdf1` with 3,300 cases (seed 7) the three sets together notice 56 of the 57 mutants. The survivor is `verify` reducing an `r ≥ p` modulo `p` where it should reject. A test for it needs a valid signature whose `R` has an x-coordinate below `2^256 - p`.
+
+Only the exhaustive tests notice three mutants: `session_init` or `partial_sig_verify` accepting an `R` at infinity, and `verify` reducing an `s ≥ n` modulo `n`. On secp256k1 a test would need one particular hash output, or a valid signature with `s < 2^256 - n`.
+
+The unit tests alone miss 12 mutants: those four and the following eight.
+
+| Mutant | Why the unit tests pass |
+|---|---|
+| `nonce_gen` accepts a secret key that is zero or not below `n` | No test calls it with such a key. |
+| `partial_sign` accepts a `secnonce` made for another public key | No test tries. |
+| `partial_sign` accepts lists in which the signer's `R2` appears twice | The vector "Signer's R2 appears at two indices" is run with the signer at index 0. The code remembers the last index with that `R2` and also compares it with the signer's, so the second check fails for this vector. |
+| `partial_sign` accepts the signer's `R2` at another index than the signer's | No test has it only there. |
+| `partial_sign` compares `R2` by x-coordinate only | No test has another signer with the negation of the signer's `R2`. With two signers `NonceAgg` fails on such nonces, so the case needs three. |
+| `partial_sig_agg` accepts a number of partial signatures other than the session's | No test tries. BIP 459 has no test vectors for `SigAgg`. |
+| `partial_sig_parse` accepts a value not below `n` | No test tries. |
+| `verify` accepts an empty list | The signature of the vector "Empty signer list" does not satisfy `s⋅G = R`, so `verify` rejects it with or without the check. |
+
+The cases of `scripts/fuzz.py` notice all eight. Four mutants are noticed by the unit tests only, in `api_tests`: `nonce_gen` accepting an all-zero `rand'` or not clearing it, `session_init` accepting empty lists, and `partial_sign` not comparing the number of signers with the session. The driver never makes those calls.
 
 ## License
 
