@@ -1,5 +1,6 @@
 import Dahlias.Basic
 import Dahlias.Correctness
+import Dahlias.Blame
 import Dahlias.Single
 import Dahlias.Bytes
 import Dahlias.BytesCurve
@@ -64,6 +65,32 @@ set_option linter.style.longLine false
 /-- info: 'Dahlias.tweakPK_mulG' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Dahlias.tweakPK_mulG
+
+/-! ## Finding a disruptive signer -/
+
+/-- info: 'Dahlias.partialSigVerify_iff' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.partialSigVerify_iff
+
+/-- info: 'Dahlias.partialSigVerify_unique' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.partialSigVerify_unique
+
+/-- info: 'Dahlias.partialSigVerify_iff_eq_sign' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.partialSigVerify_iff_eq_sign
+
+/-- info: 'Dahlias.exists_partialSigVerify_eq_false' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.exists_partialSigVerify_eq_false
+
+/-- info: 'Dahlias.partialSigVerify_of_verify' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.partialSigVerify_of_verify
+
+/-- info: 'Dahlias.verify_eq_false_of_one_bad' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.verify_eq_false_of_one_bad
 
 /-! ## Signing by a single party that holds all keys -/
 

@@ -55,7 +55,7 @@ What BIP 459 says about correctness and security, and the theorem for it.
 | BIP 459 | Lean |
 |---|---|
 | General Signing Flow: if all signers behaved honestly, the result passes `Verify`. | `verify_honest` in the model, `Bytes.verify_honest` on bytes. |
-| General Signing Flow: if the aggregate signature is invalid, the coordinator can find the disruptive signer with `PartialSigVerify`. `PartialSigVerify`: if it succeeds for all signers, `SigAgg` with the aggregate nonce from `NonceAgg` gives a valid signature. | `verify_sigAgg_of_partialSigVerify`. So an invalid aggregate has a partial signature that fails, and `partialSigVerify_sign` shows that an honest signer's never does. |
+| General Signing Flow: if the aggregate signature is invalid, the coordinator can find the disruptive signer with `PartialSigVerify`. `PartialSigVerify`: if it succeeds for all signers, `SigAgg` with the aggregate nonce from `NonceAgg` gives a valid signature. | `verify_sigAgg_of_partialSigVerify`, and `exists_partialSigVerify_eq_false` for the contrapositive: an invalid aggregate has a partial signature that fails. `partialSigVerify_iff_eq_sign`: at an honest signer's index the partial signature that `Sign` returns passes and no other value does, so an honest signer is not blamed and nobody can pass in its place. `verify_eq_false_of_one_bad`: one bad partial signature among good ones makes the aggregate invalid. Two bad ones can cancel, and `PartialSigVerify` still fails for both. |
 | General Signing Flow and Security: a `secnonce` must not be used twice. Three executions of `Sign` in different sessions reveal the secret key. Nonce Generation: the same holds for nonces derived deterministically. | `evenScalar_of_three_sessions`, if a determinant of public values is nonzero. `evenScalar_of_nonce_reuse` for two executions with the same session values and different challenges. |
 | Nonce Generation: `NonceGen` with a uniform `rand'`. | `nonceGen_unforgeable`, with `hash_BIP0459/nonce` as a random oracle and an `extra_in` chosen by the adversary. `nonceGenSk_advantage` adds the optional `sk` argument. |
 | Nonce Generation: the optional arguments may prevent key exposure if `rand'` is not uniform. | No theorem. Both theorems assume a uniform `rand'`. |
@@ -1066,6 +1066,77 @@ with probability at most `(qh + 2⋅N)² / n`. -/
 theorem strongly_binding (hE : Curve.PrimeOrder n E) (hN : N < n) (qh : ℕ)
     (hA : ∀ coins T, (fresh T (A coins)).length ≤ qh) :
     prob (bindExperiment C nonceCoef N A) ≤ ((qh + 2 * N : ℕ) : ℝ) ^ 2 / n
+```
+
+### Finding a disruptive signer
+
+`Dahlias/Correctness.lean` and `Dahlias/Blame.lean`. The statements hold for every choice of the hash functions.
+
+```lean
+/-- **A partial signature made by `Sign` passes `PartialSigVerify`**, at the
+index `j` that holds the signer's public nonce, when the aggregate nonce is
+the one `NonceAgg` computes. -/
+theorem partialSigVerify_sign {r₁ r₂ sk : ZMod n} {m : M} {agg : PubNonce E}
+    {pm : List (X × M)} {pubnonces : List (PubNonce E)} {s : ZMod n} {j : ℕ}
+    (hagg : nonceAgg pubnonces = some agg)
+    (hj : pubnonces[j]? = some (C.mulG r₁, C.mulG r₂))
+    (hs : sign C.ops H (r₁, r₂) sk m agg pm pubnonces = some s) :
+    partialSigVerify C.ops H s pm pubnonces j = true
+```
+
+```lean
+/-- **Partial signatures that verify aggregate to a valid signature.** If
+`PartialSigVerify` accepts the partial signature of every signer, then
+`SigAgg`, called with the aggregate nonce from `NonceAgg`, returns a signature
+that `Verify` accepts. -/
+theorem verify_sigAgg_of_partialSigVerify {pm : List (X × M)} {pubnonces : List (PubNonce E)}
+    {psigs : List (ZMod n)} {agg : PubNonce E} {sig : X × ZMod n}
+    (hagg : nonceAgg pubnonces = some agg)
+    (hsig : sigAgg C.ops H agg pm pubnonces psigs = some sig)
+    (hpart : ∀ (i : ℕ) (hi : i < psigs.length),
+      partialSigVerify C.ops H psigs[i] pm pubnonces i = true) :
+    verify C.ops H pm sig = true
+```
+
+```lean
+/-- **The honest partial signature is the only one that passes.** At the
+index that holds an honest signer's public nonce, `PartialSigVerify` accepts
+`s'` iff `s'` is the partial signature that `Sign` returns. -/
+theorem partialSigVerify_iff_eq_sign {r₁ r₂ sk : ZMod n} {m : M} {agg : PubNonce E}
+    {pm : List (X × M)} {pubnonces : List (PubNonce E)} {s : ZMod n} {j : ℕ}
+    (hagg : nonceAgg pubnonces = some agg)
+    (hj : pubnonces[j]? = some (C.mulG r₁, C.mulG r₂))
+    (hs : sign C.ops H (r₁, r₂) sk m agg pm pubnonces = some s) (s' : ZMod n) :
+    partialSigVerify C.ops H s' pm pubnonces j = true ↔ s' = s
+```
+
+```lean
+/-- **An invalid aggregate signature has a partial signature that fails.** If
+the signature that `SigAgg` returns, called with the aggregate nonce from
+`NonceAgg`, does not pass `Verify`, then `PartialSigVerify` rejects the
+partial signature of at least one signer. -/
+theorem exists_partialSigVerify_eq_false {pm : List (X × M)} {pubnonces : List (PubNonce E)}
+    {psigs : List (ZMod n)} {agg : PubNonce E} {sig : X × ZMod n}
+    (hagg : nonceAgg pubnonces = some agg)
+    (hsig : sigAgg C.ops H agg pm pubnonces psigs = some sig)
+    (hver : verify C.ops H pm sig = false) :
+    ∃ (i : ℕ) (hi : i < psigs.length),
+      partialSigVerify C.ops H psigs[i] pm pubnonces i = false
+```
+
+```lean
+/-- **One bad partial signature among good ones makes the aggregate signature
+invalid.** If `PartialSigVerify` rejects the partial signature of signer `i`
+and accepts those of all other signers, the signature from `SigAgg` does not
+pass `Verify`. -/
+theorem verify_eq_false_of_one_bad {pm : List (X × M)} {pubnonces : List (PubNonce E)}
+    {psigs : List (ZMod n)} {agg : PubNonce E} {sig : X × ZMod n} {i : ℕ}
+    (hagg : nonceAgg pubnonces = some agg)
+    (hsig : sigAgg C.ops H agg pm pubnonces psigs = some sig) (hi : i < psigs.length)
+    (hbad : partialSigVerify C.ops H psigs[i] pm pubnonces i = false)
+    (hothers : ∀ (k : ℕ) (hk : k < psigs.length), k ≠ i →
+      partialSigVerify C.ops H psigs[k] pm pubnonces k = true) :
+    verify C.ops H pm sig = false
 ```
 
 ### The bytes

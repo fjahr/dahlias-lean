@@ -18,6 +18,7 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 | `secp256k1_primeOrder` | `Dahlias/PrimeOrder.lean` | secp256k1 has exactly `n` points. |
 | `localFork_prob` | `Dahlias/LocalFork.lean`, `Dahlias/Fork.lean` | The local forking lemma of Bellare, Dai and Li. |
 | `verify_honest` | `Dahlias/Correctness.lean`, `Dahlias/BytesCorrectness.lean` | An honest session produces a signature that verifies, for the model and for the byte-level algorithms. |
+| `partialSigVerify_iff_eq_sign`, `exists_partialSigVerify_eq_false`, `verify_eq_false_of_one_bad` | `Dahlias/Blame.lean` | `PartialSigVerify` finds a disruptive signer. At an honest signer's index only the partial signature that `Sign` returns passes. An invalid aggregate signature has a partial signature that fails, and one bad partial signature among good ones makes the aggregate signature invalid. |
 | `verify_sigAgg_of_partialSigVerify` | `Dahlias/Correctness.lean` | Partial signatures that pass `PartialSigVerify` aggregate to a valid signature. |
 | `prob_eval_eq_lazy`, `forgeAdvantage_eq_lazy`, `omdlAdvantage_reduction_eq_lazy`, `unforgeable_sqrt_lazy` | `Dahlias/Lazy.lean`, `Dahlias/LazyGame.lean`, `Dahlias/LazyReduction.lean` | A uniform table is a lazily sampled oracle. The unforgeability game has the same advantage when every new challenge hash query gets the next of `qh + qs + N` uniform scalars. The reduction has the same advantage when it answers the forger's queries from `2·(qh + qs) + 1` uniform scalars instead of a table. |
 | `nonceGen_advantage`, `nonceGen_unforgeable`, `nonceGenSk_advantage` | `Dahlias/NonceGen.lean`, `Dahlias/NonceGenSk.lean` | The game in which the signer derives its nonces as in `NonceGen`, with `hash_BIP0459/nonce` as a second random oracle and an `extra_in` that the adversary chooses. The adversary gains at most `qs²/|Rnd| + qs·qn/|Rnd| + 2·qs·(|W| - (n - 1))/|W|` over the game with uniform nonces. With the optional `sk` argument and `hash_BIP0459/aux` as a third random oracle it gains at most `qs²/|Rp| + qs·qa/|Rp|` more. |
@@ -42,6 +43,7 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 - `Dahlias/LazyReduction.lean`: the reduction with a lazily sampled random oracle.
 - `Dahlias/Hashed.lean`: the game with hash outputs that are reduced modulo `n`.
 - `Dahlias/Examples.lean`: a forger that wins the game by guessing the key, as a check that the definitions are not vacuous.
+- `Dahlias/Blame.lean`: `PartialSigVerify` finds a disruptive signer.
 
 The curve, SHA-256 and BIP 340 come from [taproot-lean](https://github.com/dni/taproot-lean). The security proof depends only on Mathlib and on taproot-lean's curve interface.
 

@@ -1,5 +1,6 @@
 import Dahlias.Basic
 import Dahlias.Correctness
+import Dahlias.Blame
 import Dahlias.Single
 import Dahlias.Bytes
 import Dahlias.BytesCurve

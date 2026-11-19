@@ -81,6 +81,14 @@ SECTIONS = [
     ("Binding",
      "`Dahlias/Binding.lean`.",
      [("Dahlias/Binding.lean", ["BindAdversary", "bindExperiment", "strongly_binding"])]),
+    ("Finding a disruptive signer",
+     "`Dahlias/Correctness.lean` and `Dahlias/Blame.lean`. The statements hold for every choice "
+     "of the hash functions.",
+     [("Dahlias/Correctness.lean",
+       ["partialSigVerify_sign", "verify_sigAgg_of_partialSigVerify"]),
+      ("Dahlias/Blame.lean",
+       ["partialSigVerify_iff_eq_sign", "exists_partialSigVerify_eq_false",
+        "verify_eq_false_of_one_bad"])]),
     ("The bytes",
      "`Dahlias/Bytes.lean` and `Dahlias/Encoding.lean`. `Sign` and `Verify` on bytes parse "
      "their inputs and call the model.",
