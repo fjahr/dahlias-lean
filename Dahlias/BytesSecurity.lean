@@ -1,6 +1,7 @@
 import Dahlias.Secp256k1
 import Dahlias.BytesCorrectness
 import Dahlias.Proofs.Game
+import Dahlias.Hashed
 
 /-!
 # The security theorems for 32-byte keys and messages
@@ -14,6 +15,11 @@ arrays (`B32`), and with the nonce coefficient hash of BIP 459:
 algorithms of `Dahlias.Bytes` on the underlying byte arrays, so the theorems
 are about what `Dahlias.Bytes` and the test vectors run, with the challenge
 hash replaced by the random oracle.
+
+In `bytes_unforgeable` the random oracle answers with a uniform scalar. In
+`bytes_unforgeable_256` it answers with a uniform 256-bit value that `Sign`
+and `Verify` reduce modulo `n`, as BIP 459 does with SHA-256. The difference
+is at most `2^-127` for every oracle value the game reads (`hash_gap`).
 -/
 
 set_option linter.unusedSectionVars false
@@ -62,6 +68,34 @@ theorem bytes_unforgeable {Coins : Type} [Fintype Coins] (N qs : ℕ)
           collisionAdvantage secp256k1X nonceCoef32 N qs A)) + (qh + qs + 1 : ℕ) / n +
         qs / (n - 1 : ℝ) :=
   unforgeable_sqrt secp256k1X nonceCoef32 N qs A hN qh hA
+
+set_option synthInstance.maxSize 2000 in
+/-- **BIP 459 with 32-byte keys and messages is unforgeable under AOMDL**, with
+the challenge hash as a 256-bit random oracle reduced modulo `n` and the BIP's
+nonce coefficient hash. -/
+theorem bytes_unforgeable_256 {Coins : Type} [Fintype Coins] (N qs : ℕ)
+    (A : AdversaryH n N Point B32 B32 (Fin (2 ^ 256)) Coins) (hN : N < n) (qh : ℕ)
+    (hA : ∀ coins P, HashBound (A coins P) qh) :
+    forgeAdvantageH secp256k1X nonceCoef32 N qs (redFin (2 ^ 256)) A ≤
+      Real.sqrt ((qh + qs + 1 : ℕ) *
+        (omdlAdvantage secp256k1X (2 * qs + 1)
+            (reduction secp256k1X nonceCoef32 N qs
+              fun coins P => liftHash N (liftFin n_lt.le) (A coins P)) +
+          collisionAdvantage secp256k1X nonceCoef32 N qs
+            fun coins P => liftHash N (liftFin n_lt.le) (A coins P))) +
+        (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ) +
+        (qh + qs + N : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ)) :=
+  unforgeable_sqrt_fin secp256k1X nonceCoef32 N qs n_lt.le A hN qh hA
+
+/-- The cost of reducing a 256-bit hash output modulo `n`, for every oracle
+value the game reads, is at most `2^-127`. -/
+theorem hash_gap : (((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ) ≤ 1 / 2 ^ 127 := by
+  have h : 2 ^ 256 ≤ n + 2 ^ 129 := by decide
+  have h' : ((2 ^ 256 : ℕ) : ℝ) ≤ (n : ℝ) + ((2 ^ 129 : ℕ) : ℝ) := by exact_mod_cast h
+  have hpos : (0 : ℝ) < ((2 ^ 256 : ℕ) : ℝ) := by positivity
+  rw [div_le_div_iff₀ hpos (by positivity)]
+  have e : ((2 ^ 256 : ℕ) : ℝ) = ((2 ^ 129 : ℕ) : ℝ) * 2 ^ 127 := by norm_num
+  nlinarith [h', e]
 
 set_option synthInstance.maxSize 2000 in
 /-- **BIP 459 with 32-byte keys and messages is strongly binding.** -/

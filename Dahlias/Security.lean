@@ -257,7 +257,8 @@ noncomputable abbrev forgeAdvantage (C : Curve n E X)
 /-- The number of random oracle queries an algorithm makes is at most `qh`,
 whatever the answers. A single-party signing query counts as one query for
 every entry of its list. -/
-def HashBound {N : ℕ} {α : Type} : Alg (AdvQ n N E X M) AdvR α → ℕ → Prop
+def HashBound {N : ℕ} {α : Type} {R : AdvQ n N E X M → Type} :
+    Alg (AdvQ n N E X M) R α → ℕ → Prop
   | .done _, _ => True
   | .ask (.hash _) f, qh => 0 < qh ∧ ∀ r, HashBound (f r) (qh - 1)
   | .ask .openSession f, qh => ∀ r, HashBound (f r) qh

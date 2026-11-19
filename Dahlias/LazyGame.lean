@@ -48,31 +48,23 @@ theorem verifyWith_eq (T : SigIn N X M → ZMod n) (pm : List (X × M)) (h : pm.
   simp only [hashesOf, h, ↓reduceDIte]
   rfl
 
-variable {Coins : Type} (A : Adversary n N E X M Coins) (coins : Coins)
+open Classical in
+/-- The verifier's part of the game: query the challenges of the forgery and
+say whether the adversary wins. -/
+noncomputable def winTail (out : Forgery n X M × SignerState X M) :
+    QTree (SigIn N X M) (ZMod n) Bool :=
+  if h : out.1.L.length ≤ N then
+    askAll (out.1.L.map fun e => ((⟨out.1.L, h⟩ : BList N X M), out.1.sig.1, e)) >>= fun cs =>
+      .done (decide (out.1.τ.2 ≠ 0 ∧ out.1.τ.sk x ≠ 0 ∧
+          ∃ m, (C.x (C.mulG (out.1.τ.sk x)), m) ∈ out.1.L ∧
+            (out.1.L, C.x (C.mulG (out.1.τ.sk x)), m) ∉ out.2.signed) &&
+        verifyWith C.ops out.1.L out.1.sig cs)
+  else .done false
 
 open Classical in
-/-- **The whole game as one algorithm**: the adversary with the honest signer,
-then the verifier. The output says whether the adversary wins. -/
-noncomputable def winTree : QTree (SigIn N X M) (ZMod n) Bool :=
-  Alg.interp (treeChallenger false C nonceCoef N qs x nonces) (A coins (C.mulG x)) ⟨0, [], []⟩ >>=
-    fun out =>
-      if h : out.1.L.length ≤ N then
-        askAll (out.1.L.map fun e => ((⟨out.1.L, h⟩ : BList N X M), out.1.sig.1, e)) >>= fun cs =>
-          .done (decide (out.1.τ.2 ≠ 0 ∧ out.1.τ.sk x ≠ 0 ∧
-              ∃ m, (C.x (C.mulG (out.1.τ.sk x)), m) ∈ out.1.L ∧
-                (out.1.L, C.x (C.mulG (out.1.τ.sk x)), m) ∉ out.2.signed) &&
-            verifyWith C.ops out.1.L out.1.sig cs)
-      else .done false
-
-open Classical in
-theorem eval_winTree (T : SigIn N X M → ZMod n) :
-    eval T (winTree C nonceCoef N qs x nonces A coins) = true ↔
-      Wins C nonceCoef N x T
-        ((A coins (C.mulG x)).run (challenger C nonceCoef N qs x nonces T) ⟨0, [], []⟩).1
-        ((A coins (C.mulG x)).run (challenger C nonceCoef N qs x nonces T) ⟨0, [], []⟩).2 := by
-  unfold winTree
-  rw [eval_bind, eval_interp]
-  set out := (A coins (C.mulG x)).run (challenger C nonceCoef N qs x nonces T) ⟨0, [], []⟩
+theorem eval_winTail (T : SigIn N X M → ZMod n) (out : Forgery n X M × SignerState X M) :
+    eval T (winTail C N x out) = true ↔ Wins C nonceCoef N x T out.1 out.2 := by
+  unfold winTail
   by_cases h : out.1.L.length ≤ N
   · rw [dite_eq_left_of_eq_true (eq_true h), eval_bind, eval_askAll, List.map_map]
     change (decide _ && verifyWith C.ops out.1.L out.1.sig
@@ -86,6 +78,35 @@ theorem eval_winTree (T : SigIn N X M → ZMod n) :
     simp only [Bool.false_eq_true, false_iff]
     tauto
 
+theorem length_flog_winTail (T : SigIn N X M → ZMod n) (l : List (SigIn N X M))
+    (out : Forgery n X M × SignerState X M) :
+    (flog T l (winTail C N x out)).length ≤ l.length + N := by
+  unfold winTail
+  split_ifs with hL
+  · rw [flog_bind]
+    change (flog T _ (askAll _)).length ≤ _
+    refine (length_flog_askAll T _ _).trans ?_
+    rw [List.length_map]
+    exact Nat.add_le_add le_rfl hL
+  · exact Nat.le_add_right _ _
+
+variable {Coins : Type} (A : Adversary n N E X M Coins) (coins : Coins)
+
+/-- **The whole game as one algorithm**: the adversary with the honest signer,
+then the verifier. The output says whether the adversary wins. -/
+noncomputable def winTree : QTree (SigIn N X M) (ZMod n) Bool :=
+  Alg.interp (treeChallenger false C nonceCoef N qs x nonces) (A coins (C.mulG x)) ⟨0, [], []⟩ >>=
+    winTail C N x
+
+theorem eval_winTree (T : SigIn N X M → ZMod n) :
+    eval T (winTree C nonceCoef N qs x nonces A coins) = true ↔
+      Wins C nonceCoef N x T
+        ((A coins (C.mulG x)).run (challenger C nonceCoef N qs x nonces T) ⟨0, [], []⟩).1
+        ((A coins (C.mulG x)).run (challenger C nonceCoef N qs x nonces T) ⟨0, [], []⟩).2 := by
+  unfold winTree
+  rw [eval_bind, eval_interp]
+  exact eval_winTail C nonceCoef N x T _
+
 /-- **The game makes at most `qh + qs + N` different queries.** -/
 theorem length_fresh_winTree (T : SigIn N X M → ZMod n) (qh : ℕ)
     (hA : HashBound (A coins (C.mulG x)) qh) :
@@ -95,13 +116,7 @@ theorem length_fresh_winTree (T : SigIn N X M → ZMod n) (qh : ℕ)
   have h := length_flog_interp false C nonceCoef N qs x nonces T (A coins (C.mulG x)) qh hA
     ⟨0, [], []⟩ [] ⟨List.nodup_nil, by simp, Nat.zero_le _⟩
   simp only [List.length_nil, zero_add, Nat.sub_zero] at h
-  split_ifs with hL
-  · rw [flog_bind]
-    change (flog T _ (askAll _)).length ≤ _
-    refine (length_flog_askAll T _ _).trans ?_
-    rw [List.length_map]
-    exact Nat.add_le_add h hL
-  · exact (le_of_eq rfl).trans (h.trans (by omega))
+  exact (length_flog_winTail C N x T _ _).trans (Nat.add_le_add_right h N)
 
 variable [Fintype Coins] [Fintype (SigIn N X M)]
 

@@ -16,6 +16,7 @@ import Dahlias.Unforgeability
 import Dahlias.SingleGame
 import Dahlias.Lazy
 import Dahlias.LazyGame
+import Dahlias.Hashed
 import Dahlias.NonceProb
 import Dahlias.Second
 import Dahlias.LazyReduction
@@ -26,6 +27,7 @@ import Dahlias.PrimeOrder
 import Dahlias.Tweaks
 import Dahlias.Secp256k1
 import Dahlias.BytesSecurity
+import Dahlias.Encoding
 import Dahlias.Examples
 import Dahlias.Attacks
 import Dahlias.Ros
@@ -223,6 +225,20 @@ info: 'Dahlias.Security.secp256k1_unforgeable' depends on axioms: [propext,
 #guard_msgs in
 #print axioms Dahlias.Security.unforgeable_sqrt_lazy
 
+/-! ## The challenge hash as an output reduced modulo `n` -/
+
+/-- info: 'Dahlias.Security.forgeAdvantageH_le' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.forgeAdvantageH_le
+
+/-- info: 'Dahlias.Security.unforgeable_sqrt_hashed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.unforgeable_sqrt_hashed
+
+/-- info: 'Dahlias.Security.unforgeable_sqrt_fin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.unforgeable_sqrt_fin
+
 /-! ## Nonces derived by `NonceGen` -/
 
 /-- info: 'Dahlias.Security.nonceGen_advantage' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -279,6 +295,19 @@ info: 'Dahlias.Security.bytes_unforgeable' depends on axioms: [propext,
 -/
 #guard_msgs in
 #print axioms Dahlias.Security.bytes_unforgeable
+
+/--
+info: 'Dahlias.Security.bytes_unforgeable_256' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Dahlias.Security.bytes_unforgeable_256
+
+/-- info: 'Dahlias.Security.hash_gap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.hash_gap
 
 /--
 info: 'Dahlias.Security.bytes_strongly_binding' depends on axioms: [propext,

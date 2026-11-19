@@ -16,6 +16,7 @@ import Dahlias.Unforgeability
 import Dahlias.SingleGame
 import Dahlias.Lazy
 import Dahlias.LazyGame
+import Dahlias.Hashed
 import Dahlias.NonceProb
 import Dahlias.Second
 import Dahlias.LazyReduction

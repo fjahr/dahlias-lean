@@ -96,6 +96,69 @@ theorem evalLazy_congr {v v' : ℕ → S} (k : ℕ) (h : ∀ i, k ≤ i → v i 
       simp only [h k le_rfl]
       exact ih _ (k + 1) (fun i hi => h i (by omega)) _
 
+/-! ## Answers of another type -/
+
+variable {S₂ β : Type}
+
+/-- A query algorithm for answers in `S`, fed with answers in `S₂` through
+`ψ`. -/
+def mapTree (ψ : S₂ → S) : QTree D S α → QTree D S₂ α
+  | .done a => .done a
+  | .ask d f => .ask d fun s => mapTree ψ (f (ψ s))
+
+omit [DecidableEq D] in
+theorem eval_mapTree (ψ : S₂ → S) (T : D → S₂) (t : QTree D S α) :
+    eval T (mapTree ψ t) = eval (fun d => ψ (T d)) t := by
+  induction t with
+  | done a => rfl
+  | ask d f ih => exact ih _
+
+theorem flog_mapTree (ψ : S₂ → S) (T : D → S₂) (l : List D) (t : QTree D S α) :
+    flog T l (mapTree ψ t) = flog (fun d => ψ (T d)) l t := by
+  induction t generalizing l with
+  | done a => rfl
+  | ask d f ih => exact ih _ _
+
+omit [DecidableEq D] in
+theorem mapTree_bind (ψ : S₂ → S) (t : QTree D S α) (g : α → QTree D S β) :
+    mapTree ψ (t >>= g) = mapTree ψ t >>= fun a => mapTree ψ (g a) := by
+  induction t with
+  | done a => rfl
+  | ask d f ih =>
+    change Alg.ask d (fun s => mapTree ψ (f (ψ s) >>= g)) =
+      Alg.ask d fun s => mapTree ψ (f (ψ s)) >>= fun a => mapTree ψ (g a)
+    congr 1
+    funext s
+    exact ih _
+
+theorem memo_map (ψ : S₂ → S) (μ : List (D × S₂)) (d : D) :
+    memo (μ.map fun p => (p.1, ψ p.2)) d = (memo μ d).map ψ := by
+  unfold memo
+  induction μ with
+  | nil => rfl
+  | cons p μ ih =>
+    by_cases h : p.1 = d
+    · simp [h]
+    · simp only [List.map_cons, List.find?_cons, h, decide_false]
+      exact ih
+
+/-- The lazy run of `mapTree ψ t` is the lazy run of `t` on the mapped stream
+and memory. -/
+theorem evalLazy_mapTree (ψ : S₂ → S) (v : ℕ → S₂) (k : ℕ) (μ : List (D × S₂))
+    (t : QTree D S α) :
+    evalLazy v k μ (mapTree ψ t) =
+      evalLazy (fun i => ψ (v i)) k (μ.map fun p => (p.1, ψ p.2)) t := by
+  induction t generalizing k μ with
+  | done a => rfl
+  | ask d f ih =>
+    simp only [mapTree, evalLazy, memo_map]
+    cases memo μ d with
+    | some s => exact ih _ _ _
+    | none =>
+      simp only [Option.map_none]
+      rw [ih]
+      simp
+
 /-! ## Tables that extend a memory -/
 
 /-- The table `T` agrees with the remembered answers. -/

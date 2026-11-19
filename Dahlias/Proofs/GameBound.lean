@@ -34,8 +34,8 @@ def hashCost {N : ℕ} : AdvQ n N E X M → ℕ
   | .single items => items.length
   | _ => 0
 
-theorem hashBound_ask {N : ℕ} {α : Type} {q : AdvQ n N E X M}
-    {f : AdvR q → Alg (AdvQ n N E X M) AdvR α} {qh : ℕ} (h : HashBound (.ask q f) qh) :
+theorem hashBound_ask {N : ℕ} {α : Type} {R : AdvQ n N E X M → Type} {q : AdvQ n N E X M}
+    {f : R q → Alg (AdvQ n N E X M) R α} {qh : ℕ} (h : HashBound (.ask q f) qh) :
     hashCost q ≤ qh ∧ ∀ r, HashBound (f r) (qh - hashCost q) := by
   cases q with
   | hash z => exact ⟨h.1, h.2⟩
