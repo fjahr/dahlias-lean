@@ -13,6 +13,8 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 | `unforgeable`, `unforgeable_sqrt`, `secp256k1_unforgeable` | `Dahlias/Unforgeability.lean`, `Dahlias/Secp256k1.lean` | A forger with success probability `adv`, at most `qh` random oracle queries and `qs` signing sessions gives an AOMDL adversary and a collision finder with `adv * (adv / q - 1 / n) ≤ omdl + coll` for `q = qh + qs + 1`. If the forger may also ask the signer for single-party signatures, `adv ≤ sqrt (q * (omdl + coll)) + q / n + qs / (n - 1)`. |
 | `strongly_binding`, `secp256k1_strongly_binding` | `Dahlias/Binding.lean`, `Dahlias/Secp256k1.lean` | An adversary with at most `qh` random oracle queries finds a signature that is valid for two different lists of at most `N` entries with probability at most `(qh + 2N)² / n`. |
 | `bytes_unforgeable`, `bytes_strongly_binding` | `Dahlias/BytesSecurity.lean` | Both security theorems for secp256k1 with 32-byte public keys and messages and the BIP's nonce coefficient hash. `sign_val` and `verify_val` say that this instance runs the byte-level `Sign` and `Verify`. |
+| `unforgeable_sqrt_fin`, `bytes_unforgeable_256`, `hash_gap` | `Dahlias/Hashed.lean`, `Dahlias/BytesSecurity.lean` | The same with the challenge hash as BIP 459 computes it. The random oracle has 256-bit outputs, which the adversary sees and `Sign` and `Verify` reduce modulo `n`. This costs at most `(qh + qs + N) / 2^127`. |
+| `sigInput_injective`, `nonceCoefInput_injective`, `cpoint_eq_some_iff`, `matchIdxs_bytes`, `sign_bytes`, `verify_bytes` | `Dahlias/Encoding.lean` | The byte encodings lose nothing. The hash inputs determine the structured inputs, no point has two encodings, and `Sign` and `Verify` on bytes are those of the instance of `bytes_unforgeable`. |
 | `secp256k1_primeOrder` | `Dahlias/PrimeOrder.lean` | secp256k1 has exactly `n` points. |
 | `localFork_prob` | `Dahlias/LocalFork.lean`, `Dahlias/Fork.lean` | The local forking lemma of Bellare, Dai and Li. |
 | `verify_honest` | `Dahlias/Correctness.lean`, `Dahlias/BytesCorrectness.lean` | An honest session produces a signature that verifies, for the model and for the byte-level algorithms. |
@@ -30,7 +32,7 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 ## Layout
 
 - `Dahlias/Basic.lean`: the algorithms of BIP 459.
-- `Dahlias/Bytes.lean`: the algorithms on byte arrays, with the BIP's encodings, range checks and SHA-256 tagged hashes.
+- `Dahlias/Bytes.lean`: the algorithms on byte arrays, with the BIP's encodings, range checks and SHA-256 tagged hashes. `Dahlias/Encoding.lean`: what the encodings preserve.
 - `Dahlias/Security.lean`: the unforgeability game and the AOMDL game.
 - `Dahlias/Alg.lean`, `Dahlias/QueryRun.lean`, `Dahlias/Prob.lean`: deterministic oracle algorithms and probabilities on finite sample spaces.
 - `Dahlias/Proofs/`: the reduction to AOMDL, for the game in which a single-party signature uses a derived nonce.
@@ -38,6 +40,7 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 - `Dahlias/Lazy.lean`, `Dahlias/Second.lean`, `Dahlias/NonceProb.lean`: lazily sampled oracles, algorithms with a second oracle, and the counting lemmas for oracle values at secret points.
 - `Dahlias/NonceGen.lean`, `Dahlias/NonceGenSk.lean`: the game with nonces derived as in `NonceGen`.
 - `Dahlias/LazyReduction.lean`: the reduction with a lazily sampled random oracle.
+- `Dahlias/Hashed.lean`: the game with hash outputs that are reduced modulo `n`.
 - `Dahlias/Examples.lean`: a forger that wins the game by guessing the key, as a check that the definitions are not vacuous.
 
 The curve, SHA-256 and BIP 340 come from [taproot-lean](https://github.com/dni/taproot-lean). The security proof depends only on Mathlib and on taproot-lean's curve interface.
@@ -53,10 +56,11 @@ scripts/replay.sh
 
 The toolchain is Lean v4.34.1 with Mathlib v4.34.1. The first build compiles the dependencies that have no cache and takes a while.
 
-`Dahlias/VectorData.lean` is generated:
+`Dahlias/VectorData.lean` and the last section of `REVIEW.md` are generated:
 
 ```sh
 python3 scripts/gen_vectors.py path/to/bips/bip-0459/vectors > Dahlias/VectorData.lean
+python3 scripts/gen_review.py
 ```
 
 ## Differential testing

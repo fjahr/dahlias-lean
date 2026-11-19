@@ -20,7 +20,9 @@ trust about the security theorem is in this file and in `Dahlias.Basic`.
   random table `T` on the inputs `(L, r, (pk, m))` with `L` of at most `N`
   entries. The adversary reaches it only through queries. With `X` and `M`
   finite the table is a finite object, and sampling it up front is the same as
-  sampling it lazily. `hash_BIP0459/noncecoef` is a fixed function; the
+  sampling it lazily. Here the table has scalars. `Dahlias.Hashed` has the
+  game in which it has hash outputs that `Sign` and `Verify` reduce modulo
+  `n`, as BIP 459 does. `hash_BIP0459/noncecoef` is a fixed function; the
   theorem measures how often a concrete algorithm finds a collision of it.
 * **Signers per signature.** The game is for lists of at most `N` entries: the
   honest signer does not sign longer lists and longer forgeries do not count.
