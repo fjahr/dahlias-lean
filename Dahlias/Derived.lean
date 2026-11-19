@@ -335,6 +335,93 @@ theorem close_state (nonces : Fin qs → SecNonce n) (j : ℕ) (τ : Tweak n) (m
     · exact ⟨rfl, Or.inr rfl⟩
   · exact ⟨rfl, Or.inl rfl⟩
 
+/-- A query that reads the nonces of a slot is answered alike for nonces that
+agree on that slot. -/
+theorem challengerG_of_needs_some (nonces nonces' : Fin qs → SecNonce n) (q : AdvQ n N E X M)
+    (st : SignerState X M) {k : Fin qs} (h : needs N qs q st = some k)
+    (hk : nonces k = nonces' k) :
+    challengerG der C nonceCoef N qs x nonces T q st =
+      challengerG der C nonceCoef N qs x nonces' T q st := by
+  cases q with
+  | hash z => rfl
+  | openSession =>
+    by_cases ho : st.opened < qs
+    · simp only [needs, ho, ↓reduceDIte, Option.some.injEq] at h
+      subst h
+      simp only [challengerG, ho, ↓reduceDIte, hk]
+    · simp [needs, ho] at h
+  | close j τ m agg pm pubnonces =>
+    by_cases hc : j < qs ∧ j < st.opened ∧ j ∉ st.closed
+    · have hk' : k = ⟨j, hc.1⟩ := by
+        have : needs N qs (.close j τ m agg pm pubnonces) st = some ⟨j, hc.1⟩ := by
+          unfold needs
+          exact dif_pos hc
+        exact Option.some.inj (h.symm.trans this)
+      subst hk'
+      unfold challengerG
+      dsimp only
+      by_cases hc' : j < qs ∧ j < st.opened ∧ j ∉ st.closed ∧ τ.2 ≠ 0 ∧ pm.length ≤ N
+      · rw [dif_pos hc', dif_pos hc', hk]
+      · rw [dif_neg hc', dif_neg hc']
+    · have : needs N qs (.close j τ m agg pm pubnonces) st = none := by
+        unfold needs
+        exact dif_neg hc
+      rw [this] at h
+      exact absurd h (by simp)
+  | single items =>
+    by_cases ho : st.opened < qs
+    · simp only [needs, ho, ↓reduceDIte, Option.some.injEq] at h
+      subst h
+      rw [challengerG_single der C nonceCoef N qs x T _ items st ho,
+        challengerG_single der C nonceCoef N qs x T _ items st ho, hk]
+    · simp [needs, ho] at h
+
+/-- A query that reads the nonces of slot `k` either opens `k`, or `k` is an
+open session that the query may close. -/
+theorem needs_some_cases (nonces : Fin qs → SecNonce n) (q : AdvQ n N E X M)
+    (st : SignerState X M) {k : Fin qs} (h : needs N qs q st = some k) :
+    (k.val = st.opened ∧
+        (challengerG der C nonceCoef N qs x nonces T q st).2.opened = st.opened + 1 ∧
+        ((challengerG der C nonceCoef N qs x nonces T q st).2.closed = st.closed ∨
+          (challengerG der C nonceCoef N qs x nonces T q st).2.closed =
+            st.opened :: st.closed)) ∨
+      (k.val < st.opened ∧ k.val ∉ st.closed ∧
+        (challengerG der C nonceCoef N qs x nonces T q st).2.opened = st.opened ∧
+        ((challengerG der C nonceCoef N qs x nonces T q st).2.closed = st.closed ∨
+          (challengerG der C nonceCoef N qs x nonces T q st).2.closed = k.val :: st.closed)) := by
+  cases q with
+  | hash z => simp [needs] at h
+  | openSession =>
+    by_cases ho : st.opened < qs
+    · simp only [needs, ho, ↓reduceDIte, Option.some.injEq] at h
+      subst h
+      exact Or.inl ⟨rfl, by simp [challengerG, ho], Or.inl (by simp [challengerG, ho])⟩
+    · simp [needs, ho] at h
+  | close j τ m agg pm pubnonces =>
+    by_cases hc : j < qs ∧ j < st.opened ∧ j ∉ st.closed
+    · have hk' : k = ⟨j, hc.1⟩ := by
+        have : needs N qs (.close j τ m agg pm pubnonces) st = some ⟨j, hc.1⟩ := by
+          unfold needs
+          exact dif_pos hc
+        exact Option.some.inj (h.symm.trans this)
+      subst hk'
+      obtain ⟨h1, h2⟩ := close_state der C nonceCoef N qs x T nonces j τ m agg pm pubnonces st
+      exact Or.inr ⟨hc.2.1, hc.2.2, h1, h2⟩
+    · have : needs N qs (.close j τ m agg pm pubnonces) st = none := by
+        unfold needs
+        exact dif_neg hc
+      rw [this] at h
+      exact absurd h (by simp)
+  | single items =>
+    by_cases ho : st.opened < qs
+    · simp only [needs, ho, ↓reduceDIte, Option.some.injEq] at h
+      subst h
+      rw [challengerG_single der C nonceCoef N qs x T _ items st ho]
+      obtain ⟨h1, h2⟩ := singleStep_state C N x T items st
+        (singleNonce der nonceCoef (singleKeys C x items) (nonces ⟨st.opened, ho⟩))
+      exact Or.inl ⟨rfl, h1, Or.inr h2⟩
+    · simp [needs, ho] at h
+
 variable {α : Type}
 
 open Classical in

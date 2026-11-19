@@ -330,4 +330,110 @@ theorem prob_not_injective :
 
 end Hit
 
+/-! ## Values of a random oracle at secret points -/
+
+section Hop
+
+/-- Samples with the secret values moved to the end. -/
+def moveLast {Θ Rs Gt Ws : Type} : (Θ × Rs) × (Gt × Ws) ≃ ((Θ × Gt) × Ws) × Rs where
+  toFun s := (((s.1.1, s.2.1), s.2.2), s.1.2)
+  invFun t := ((t.1.1.1, t.2), (t.1.1.2, t.1.2))
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+variable {Θ D W ι Rnd : Type} [Fintype Θ] [Fintype D] [DecidableEq D] [Fintype W] [Nonempty W]
+  [Fintype ι] [DecidableEq ι] [Fintype Rnd] [Nonempty Rnd] {qs : ℕ}
+
+/-- **Oracle values at secret points are fresh.** A game uses the values of a
+uniform table `G` at points `p r i` that are distinct for distinct uniform
+secrets `r`, and it reads `G` elsewhere only at the points of `log`. Each point
+`p r i` carries one of the secrets (`key`). Then the game is won at most as
+often as with independent uniform values `v` in place of the table's, plus the
+probability that two secrets collide or that a logged point carries a secret. -/
+theorem oracle_hop (p : (Fin qs → Rnd) → ι → D) (hp : ∀ r, Injective r → Injective (p r))
+    (key : D → Rnd) (hkey : ∀ r i, ∃ k, key (p r i) = r k)
+    (win : Θ → (D → W) → (ι → W) → Prop) (log : Θ → (D → W) → (ι → W) → List D)
+    (hcongr : ∀ θ G G' v, (∀ z ∈ log θ G v, G' z = G z) → (win θ G' v ↔ win θ G v))
+    (qn : ℕ) (hlen : ∀ θ G v, (log θ G v).length ≤ qn) :
+    prob (fun ω : (Θ × (Fin qs → Rnd)) × (D → W) => win ω.1.1 ω.2 fun i => ω.2 (p ω.1.2 i)) ≤
+      prob (fun s : (Θ × (D → W)) × (ι → W) => win s.1.1 s.1.2 s.2) +
+        (qs : ℝ) ^ 2 / Fintype.card Rnd + qs * (qn / Fintype.card Rnd) := by
+  have hRnd : (0 : ℝ) < Fintype.card Rnd := Nat.cast_pos.mpr Fintype.card_pos
+  let ideal : (Θ × (D → W)) × (ι → W) → Prop := fun s => win s.1.1 s.1.2 s.2
+  let bad : ((Θ × (D → W)) × (ι → W)) × (Fin qs → Rnd) → Prop :=
+    fun t => ∃ k, t.2 k ∈ (log t.1.1.1 t.1.1.2 t.1.2).map key
+  -- for distinct secrets
+  have hreal : ∀ (θ : Θ) (r : Fin qs → Rnd), Injective r →
+      prob (fun G : D → W => win θ G fun i => G (p r i)) ≤
+        prob (fun y : (D → W) × (ι → W) =>
+          win θ y.1 y.2 ∨ ∃ k, r k ∈ (log θ y.1 y.2).map key) := by
+    intro θ r hinj
+    have hpr := hp r hinj
+    rw [← prob_fst (B := ι → W) (fun G : D → W => win θ G fun i => G (p r i))]
+    rw [← prob_equiv (Involutive.toPerm _ (swapAt_involutive (W := W) hpr))
+      (fun y : (D → W) × (ι → W) => win θ y.1 y.2 ∨ ∃ k, r k ∈ (log θ y.1 y.2).map key)]
+    refine prob_mono ?_
+    rintro ⟨G, w⟩ hR
+    change win θ (overwrite (p r) G w) (fun i => G (p r i)) ∨
+      ∃ k, r k ∈ (log θ (overwrite (p r) G w) fun i => G (p r i)).map key
+    by_cases hb : ∃ k, r k ∈ (log θ (overwrite (p r) G w) fun i => G (p r i)).map key
+    · exact Or.inr hb
+    · refine Or.inl ((hcongr θ _ G _ fun z hz => ?_).mp hR)
+      refine (overwrite_of_ne G w fun i hi => ?_).symm
+      obtain ⟨k, hk⟩ := hkey r i
+      exact hb ⟨k, List.mem_map.mpr ⟨z, hz, by rw [← hi, hk]⟩⟩
+  have h1 := prob_le_add
+    (p := fun ω : (Θ × (Fin qs → Rnd)) × (D → W) => win ω.1.1 ω.2 fun i => ω.2 (p ω.1.2 i))
+    (q := fun ω => ¬Injective ω.1.2)
+    (r := fun ω => Injective ω.1.2 ∧ win ω.1.1 ω.2 fun i => ω.2 (p ω.1.2 i))
+    fun ω hω => by
+      by_cases h : Injective ω.1.2
+      · exact Or.inr ⟨h, hω⟩
+      · exact Or.inl h
+  have h2 : prob (fun ω : (Θ × (Fin qs → Rnd)) × (D → W) => ¬Injective ω.1.2) ≤
+      (qs : ℝ) ^ 2 / Fintype.card Rnd :=
+    prob_prod_le _ _ (by positivity) fun G =>
+      prob_prod_le' (fun a : Θ × (Fin qs → Rnd) => ¬Injective a.2) _
+        (by positivity) fun θ => prob_not_injective
+  have h3 : prob (fun ω : (Θ × (Fin qs → Rnd)) × (D → W) =>
+      Injective ω.1.2 ∧ win ω.1.1 ω.2 fun i => ω.2 (p ω.1.2 i)) ≤
+      prob (fun s : (Θ × (Fin qs → Rnd)) × ((D → W) × (ι → W)) =>
+        ideal (moveLast s).1 ∨ bad (moveLast s)) + 0 := by
+    refine prob_prod_mono _ _ 0 le_rfl fun a => ?_
+    rw [add_zero]
+    by_cases hinj : Injective a.2
+    · refine le_trans (prob_mono ?_) (hreal a.1 a.2 hinj)
+      intro G h
+      exact h.2
+    · have h0 : prob (fun _ : D → W => False) = 0 := by
+        unfold prob
+        simp
+      refine le_trans (prob_mono (q := fun _ => False) ?_) (h0.le.trans (prob_nonneg _))
+      intro G h
+      exact hinj h.1
+  rw [add_zero] at h3
+  have h4 := prob_le_add
+    (p := fun s : (Θ × (Fin qs → Rnd)) × ((D → W) × (ι → W)) =>
+      ideal (moveLast s).1 ∨ bad (moveLast s))
+    (q := fun s => ideal (moveLast s).1) (r := fun s => bad (moveLast s)) fun s h => h
+  have h5 : prob (fun s : (Θ × (Fin qs → Rnd)) × ((D → W) × (ι → W)) =>
+      ideal (moveLast s).1) = prob ideal := by
+    rw [prob_equiv moveLast (fun t => ideal t.1)]
+    exact prob_fst ideal
+  have h6 : prob (fun s : (Θ × (Fin qs → Rnd)) × ((D → W) × (ι → W)) => bad (moveLast s)) ≤
+      qs * (qn / Fintype.card Rnd) := by
+    rw [prob_equiv moveLast bad]
+    refine prob_prod_le' bad _ (by positivity) fun a => ?_
+    have hh := prob_hit (qs := qs) ((log a.1.1 a.1.2 a.2).map key)
+    have hl : ((log a.1.1 a.1.2 a.2).map key).length ≤ qn := by
+      rw [List.length_map]
+      exact hlen _ _ _
+    refine hh.trans ?_
+    gcongr
+  calc _ ≤ (qs : ℝ) ^ 2 / Fintype.card Rnd + (prob ideal + qs * (qn / Fintype.card Rnd)) :=
+        h1.trans (add_le_add h2 (h3.trans (h4.trans (add_le_add (le_of_eq h5) h6))))
+    _ = _ := by ring
+
+end Hop
+
 end Dahlias
