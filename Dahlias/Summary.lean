@@ -18,6 +18,7 @@ import Dahlias.Lazy
 import Dahlias.LazyGame
 import Dahlias.NonceProb
 import Dahlias.NonceGen
+import Dahlias.NonceGenSk
 import Dahlias.Binding
 import Dahlias.PrimeOrder
 import Dahlias.Tweaks
@@ -225,6 +226,14 @@ info: 'Dahlias.Security.secp256k1_unforgeable' depends on axioms: [propext,
 /-- info: 'Dahlias.Security.nonceGen_advantage_fin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Dahlias.Security.nonceGen_advantage_fin
+
+/-- info: 'Dahlias.Security.nonceGenSk_le' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.nonceGenSk_le
+
+/-- info: 'Dahlias.Security.nonceGenSk_advantage' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.nonceGenSk_advantage
 
 /-! ## Strong binding -/
 

@@ -42,7 +42,7 @@ taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A ful
 - No theorem bounds running time. `reduction` runs the forger twice; that is visible in its definition.
 - The game is for lists of at most `N` entries, with `N < n`.
 - In `bytes_unforgeable` public keys and messages are 32-byte arrays and the nonce coefficient hash is the BIP's. The public nonces stay curve points: the encoding of nonces as 66 bytes, the range checks on scalars and the length checks are outside the security statement. `Dahlias/Vectors.lean` runs the test vectors against the byte-level algorithms, `Dahlias/BytesCorrectness.lean` proves their correctness, and `scripts/fuzz.py` compares them with the Python reference and with libsecp256k1.
-- In `unforgeable` nonces are uniform. `nonceGen_unforgeable` covers `NonceGen` without the optional `sk` argument: `rand` is uniform, the adversary chooses `extra_in`, and `hash_BIP0459/nonce` is a random oracle that the adversary can query. Not covered: `rand = sk xor hash_BIP0459/aux(rand')`, and a `rand` that is not uniform, which is the case the optional arguments exist for.
+- In `unforgeable` nonces are uniform. `nonceGen_unforgeable` covers `NonceGen` without the optional `sk` argument: `rand` is uniform, the adversary chooses `extra_in`, and `hash_BIP0459/nonce` is a random oracle that the adversary can query. `nonceGenSk_advantage` adds the `sk` argument, `rand = sk xor hash_BIP0459/aux(rand')`, with `hash_BIP0459/aux` as a random oracle and `rand'` uniform. Both theorems assume uniform randomness. They say nothing about a `rand'` that is not uniform, which is the case the optional arguments exist for.
 
 ## Machine checks
 
