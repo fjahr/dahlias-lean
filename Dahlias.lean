@@ -17,6 +17,8 @@ import Dahlias.SingleGame
 import Dahlias.Lazy
 import Dahlias.LazyGame
 import Dahlias.NonceProb
+import Dahlias.Second
+import Dahlias.LazyReduction
 import Dahlias.NonceGen
 import Dahlias.NonceGenSk
 import Dahlias.Binding

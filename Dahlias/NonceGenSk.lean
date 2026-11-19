@@ -27,29 +27,6 @@ open Taproot Function QTree
 variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E] [DecidableEq X]
   [DecidableEq M]
 
-/-! ## Answering a second oracle inside the handler -/
-
-section Second
-
-variable {Q : Type} {R : Q → Type} {D W α σ : Type}
-
-/-- A handler for the queries `Q` extended by a table for the queries of `G`. -/
-def handG (G : D → W) (h : (q : Q) → σ → R q × σ) : (q : Q ⊕ D) → σ → SumR R W q × σ
-  | .inl q, s => h q s
-  | .inr z, s => (G z, s)
-
-theorem run_answerG (G : D → W) (h : (q : Q) → σ → R q × σ)
-    (t : Alg (Q ⊕ D) (SumR R W) α) (s : σ) :
-    (answerG G t).run h s = t.run (handG G h) s := by
-  induction t generalizing s with
-  | done a => rfl
-  | ask x f ih =>
-    cases x with
-    | inl x => exact ih _ _
-    | inr z => exact ih _ _
-
-end Second
-
 /-! ## The game -/
 
 variable (C : Curve n E X) (nonceCoef : E → E → List (X × M × E) → ZMod n) (N qs : ℕ)

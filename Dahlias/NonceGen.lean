@@ -1,5 +1,6 @@
 import Dahlias.NonceProb
 import Dahlias.Unforgeability
+import Dahlias.Second
 
 /-!
 # `NonceGen`: nonces derived with a hash function
@@ -37,66 +38,6 @@ open Taproot Function QTree
 
 variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E] [DecidableEq X]
   [DecidableEq M]
-
-/-! ## Algorithms with a second oracle -/
-
-section Second
-
-variable {Q : Type} {R : Q → Type} {D W α σ : Type}
-
-/-- The answers to the queries `Q` and to the queries of `G`. -/
-def SumR (R : Q → Type) (W : Type) : Q ⊕ D → Type
-  | .inl q => R q
-  | .inr _ => W
-
-/-- Answer the queries of `G` from a table. -/
-def answerG (G : D → W) : Alg (Q ⊕ D) (SumR R W) α → Alg Q R α
-  | .done a => .done a
-  | .ask (.inl q) f => .ask q fun r => answerG G (f r)
-  | .ask (.inr z) f => answerG G (f (G z))
-
-/-- The queries to `G` in a run. -/
-def gLog (G : D → W) (h : (q : Q) → σ → R q × σ) : Alg (Q ⊕ D) (SumR R W) α → σ → List D
-  | .done _, _ => []
-  | .ask (.inl q) f, s => gLog G h (f (h q s).1) (h q s).2
-  | .ask (.inr z) f, s => z :: gLog G h (f (G z)) s
-
-/-- At most `q` queries to `G`, whatever the answers. -/
-def NBound : Alg (Q ⊕ D) (SumR R W) α → ℕ → Prop
-  | .done _, _ => True
-  | .ask (.inl _) f, q => ∀ r, NBound (f r) q
-  | .ask (.inr _) f, q => 0 < q ∧ ∀ r, NBound (f r) (q - 1)
-
-theorem length_gLog (G : D → W) (h : (q : Q) → σ → R q × σ)
-    (t : Alg (Q ⊕ D) (SumR R W) α) (s : σ) (q : ℕ) (ht : NBound t q) :
-    (gLog G h t s).length ≤ q := by
-  induction t generalizing s q with
-  | done a => simp [gLog]
-  | ask x f ih =>
-    cases x with
-    | inl x => exact ih _ _ _ (ht _)
-    | inr z =>
-      obtain ⟨hq, hr⟩ : 0 < q ∧ ∀ r, NBound (f r) (q - 1) := ht
-      have := ih (G z) s (q - 1) (hr _)
-      simp only [gLog, List.length_cons]
-      omega
-
-/-- A run depends on `G` only at the points it queries. -/
-theorem answerG_congr (G G' : D → W) (h : (q : Q) → σ → R q × σ)
-    (t : Alg (Q ⊕ D) (SumR R W) α) (s : σ) (hG : ∀ z ∈ gLog G h t s, G' z = G z) :
-    (answerG G' t).run h s = (answerG G t).run h s := by
-  induction t generalizing s with
-  | done a => rfl
-  | ask x f ih =>
-    cases x with
-    | inl x => exact ih _ _ hG
-    | inr z =>
-      have hz : G' z = G z := hG z (by simp [gLog])
-      change (answerG G' (f (G' z))).run h s = (answerG G (f (G z))).run h s
-      rw [hz]
-      exact ih _ _ fun y hy => hG y (by simp [gLog, hy])
-
-end Second
 
 /-! ## The game -/
 

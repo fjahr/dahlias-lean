@@ -27,7 +27,7 @@ taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A ful
 
 **Does the reduction cheat?** `reduction` has the type `OmdlAdversary`: it is an oracle algorithm for the AOMDL game and gets nothing else. It wins only if it makes fewer discrete logarithm queries than it received challenges, so the query count is part of the statement. `collider` is a function of a sample; it holds the secret key and runs the game by itself, which a collision finder may do.
 
-**What is random?** The secret key and the session nonces are uniform nonzero scalars. The challenge hash is a uniform table on inputs with lists of at most `N` entries. `forgeAdvantage_eq_lazy` proves that the game has the same advantage when the oracle answers every new query with the next of `qh + qs + N` uniform scalars. The reduction's coins still contain a whole table. A reduction that samples lazily behaves the same by the same argument, but that is not proven for it, and the theorem has no notion of running time.
+**What is random?** The secret key and the session nonces are uniform nonzero scalars. The challenge hash is a uniform table on inputs with lists of at most `N` entries. `forgeAdvantage_eq_lazy` proves that the game has the same advantage when the oracle answers every new query with the next of `qh + qs + N` uniform scalars. The coins of `reduction` contain a whole table. `reductionLazy` takes `2·(qh + qs) + 1` scalars instead and wins the AOMDL game with the same probability (`omdlAdvantage_reduction_eq_lazy`); `unforgeable_sqrt_lazy` is the theorem with that reduction. The framework has no cost model, so there is no statement about running time.
 
 **What is the nonce coefficient hash?** A fixed function, `nonceCoef`. The theorem holds for every such function and measures how often `collider` outputs a collision of it. This is the usual way to state collision resistance for an unkeyed hash function.
 
@@ -39,7 +39,7 @@ taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A ful
 
 ## What the theorem does not say
 
-- No theorem bounds running time. `reduction` runs the forger twice; that is visible in its definition.
+- No theorem bounds running time. `reduction` runs the forger twice; that is visible in its definition. `reductionLazy` shows that it needs no table of exponential size.
 - The game is for lists of at most `N` entries, with `N < n`.
 - In `bytes_unforgeable` public keys and messages are 32-byte arrays and the nonce coefficient hash is the BIP's. The public nonces stay curve points: the encoding of nonces as 66 bytes, the range checks on scalars and the length checks are outside the security statement. `Dahlias/Vectors.lean` runs the test vectors against the byte-level algorithms, `Dahlias/BytesCorrectness.lean` proves their correctness, and `scripts/fuzz.py` compares them with the Python reference and with libsecp256k1.
 - In `unforgeable` nonces are uniform. `nonceGen_unforgeable` covers `NonceGen` without the optional `sk` argument: `rand` is uniform, the adversary chooses `extra_in`, and `hash_BIP0459/nonce` is a random oracle that the adversary can query. `nonceGenSk_advantage` adds the `sk` argument, `rand = sk xor hash_BIP0459/aux(rand')`, with `hash_BIP0459/aux` as a random oracle and `rand'` uniform. Both theorems assume uniform randomness. They say nothing about a `rand'` that is not uniform, which is the case the optional arguments exist for.

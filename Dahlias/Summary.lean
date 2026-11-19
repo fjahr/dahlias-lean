@@ -17,6 +17,8 @@ import Dahlias.SingleGame
 import Dahlias.Lazy
 import Dahlias.LazyGame
 import Dahlias.NonceProb
+import Dahlias.Second
+import Dahlias.LazyReduction
 import Dahlias.NonceGen
 import Dahlias.NonceGenSk
 import Dahlias.Binding
@@ -212,6 +214,14 @@ info: 'Dahlias.Security.secp256k1_unforgeable' depends on axioms: [propext,
 /-- info: 'Dahlias.Security.forgeAdvantage_eq_lazy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Dahlias.Security.forgeAdvantage_eq_lazy
+
+/-- info: 'Dahlias.Security.omdlAdvantage_reduction_eq_lazy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.omdlAdvantage_reduction_eq_lazy
+
+/-- info: 'Dahlias.Security.unforgeable_sqrt_lazy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.unforgeable_sqrt_lazy
 
 /-! ## Nonces derived by `NonceGen` -/
 
