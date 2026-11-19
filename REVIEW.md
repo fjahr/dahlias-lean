@@ -17,12 +17,13 @@ taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A ful
 
 ## Questions to ask
 
-**Is the game the paper's?** `forgeExperiment` is the co-EUF-CMA-TK game of the DahLIAS paper (Fig. 5) with two changes. Both are described in the header of `Dahlias/Security.lean`.
+**Is the game the paper's?** `forgeExperiment` is the co-EUF-CMA-TK game of the DahLIAS paper (Fig. 5) with two changes and one addition. All three are described in the header of `Dahlias/Security.lean`.
 
 - The game records the tweaked x-only public key of every signature, where the paper records the tweak. With x-only keys two different tweaks can give the same key without revealing anything: `(α, β)` and `(-α, -β)` always do. The paper's game would count a signature under one of them as a forgery under the other.
 - A `Sign` call that fails leaves the session open. The paper closes it. The adversary here has more freedom.
+- The adversary may also ask for single-party signatures: the honest signer signs a list of its own tweaked keys with one uniform nonce (`signSingle`, `challenger_single`). This is not in the paper. Sessions and single-party signatures share the `qs` nonce slots. `challengerG true` is a variant of the game that only the proof uses; the statements a reader has to trust are about `challenger`, which is `challengerG false`.
 
-**Is the adversary restricted?** An `Adversary` is any function from coins of a finite type and the public key point to an oracle algorithm. It chooses all other public keys, all messages, all nonces of the other signers, the aggregate nonce and the tweaks, and it may leave sessions open and interleave them. It is not algebraic. The hypothesis `HashBound` bounds its random oracle queries; the number of sessions is bounded by the game.
+**Is the adversary restricted?** An `Adversary` is any function from coins of a finite type and the public key point to an oracle algorithm. It chooses all other public keys, all messages, all nonces of the other signers, the aggregate nonce and the tweaks, and it may leave sessions open and interleave them. It is not algebraic. The hypothesis `HashBound` bounds its random oracle queries, counting a single-party signing query once for every entry of its list; the number of sessions and single-party signatures is bounded by the game.
 
 **Does the reduction cheat?** `reduction` has the type `OmdlAdversary`: it is an oracle algorithm for the AOMDL game and gets nothing else. It wins only if it makes fewer discrete logarithm queries than it received challenges, so the query count is part of the statement. `collider` is a function of a sample; it holds the secret key and runs the game by itself, which a collision finder may do.
 
@@ -34,7 +35,7 @@ taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A ful
 
 **Is the binding game the paper's?** `bindExperiment` is the game of Fig. 11 with the random oracle of the unforgeability game: the adversary outputs two lists and one signature and wins if the lists differ and the signature verifies for both. The theorem counts the adversary's own oracle queries; the `2N` in the bound are the verifier's queries. It holds for groups of prime order.
 
-**What does the bound say?** With `q = qh + qs + 1`, the statement `adv * (adv / q - 1 / n) ≤ omdl + coll` gives `adv ≤ sqrt (q * (omdl + coll)) + q / n` (`unforgeable_sqrt`). This is the bound of the paper's Theorem 2 up to the count of queries. The square root is the loss of the forking lemma.
+**What does the bound say?** With `q = qh + qs + 1`, `unforgeable` states `adv * (adv / q - 1 / n) ≤ omdl + coll` for adversaries that ask for no single-party signatures (`NoSingle`). This is the bound of the paper's Theorem 2 up to the count of queries. `unforgeable_sqrt` holds for all adversaries: `adv ≤ sqrt (q * (omdl + coll)) + q / n + qs / (n - 1)`. The square root is the loss of the forking lemma, and `qs / (n - 1)` pays for the single-party signatures.
 
 ## What the theorem does not say
 

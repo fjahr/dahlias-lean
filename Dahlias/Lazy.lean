@@ -96,31 +96,6 @@ theorem evalLazy_congr {v v' : ℕ → S} (k : ℕ) (h : ∀ i, k ≤ i → v i 
       simp only [h k le_rfl]
       exact ih _ (k + 1) (fun i hi => h i (by omega)) _
 
-/-- Query every point of a list and return the answers. -/
-def askAll : List D → QTree D S (List S)
-  | [] => .done []
-  | d :: l => .ask d fun s => askAll l >>= fun cs => .done (s :: cs)
-
-theorem eval_askAll (T : D → S) (l : List D) : eval T (askAll l) = l.map T := by
-  induction l with
-  | nil => rfl
-  | cons d l ih =>
-    change eval T (askAll l >>= fun cs => .done (T d :: cs)) = _
-    rw [eval_bind, ih]
-    rfl
-
-theorem length_flog_askAll (T : D → S) (l l' : List D) :
-    (flog T l (askAll l')).length ≤ l.length + l'.length := by
-  induction l' generalizing l with
-  | nil => simp [askAll, flog]
-  | cons d l' ih =>
-    change (flog T (if d ∈ l then l else l ++ [d])
-      (askAll l' >>= fun cs => .done (T d :: cs))).length ≤ _
-    rw [flog_bind]
-    change (flog T _ (askAll l')).length ≤ _
-    refine (ih _).trans ?_
-    split_ifs <;> (simp; try omega)
-
 /-! ## Tables that extend a memory -/
 
 /-- The table `T` agrees with the remembered answers. -/
@@ -310,6 +285,160 @@ theorem prob_eval_eq_lazy (P : α → Prop) (q : ℕ) (t : QTree D S α)
   rw [prob_eq_sum, prob_eq_sum, Fintype.card_fun (α := Fin q), Fintype.card_fin, Nat.cast_pow,
     div_eq_div_iff hM.ne' (pow_pos hσ q).ne']
   linarith
+
+/-! ## The lazily sampled run as an expectation -/
+
+theorem memo_append_self {μ : List (D × S)} {d : D} (h : memo μ d = none) (s : S) :
+    memo (μ ++ [(d, s)]) d = some s := by
+  unfold memo at h ⊢
+  rw [Option.map_eq_none_iff] at h
+  simp [List.find?_append, h]
+
+theorem memo_append_ne {μ : List (D × S)} {d d' : D} (h : d ≠ d') (s : S) :
+    memo (μ ++ [(d, s)]) d' = memo μ d' := by
+  unfold memo
+  rw [List.find?_append]
+  cases hf : μ.find? fun p => decide (p.1 = d') with
+  | some p => simp
+  | none => simp [h]
+
+/-- The expectation of `F` on the output and the final memory of a run with a
+lazily sampled oracle that starts with the memory `μ`: a new query averages
+over all answers. -/
+noncomputable def exL (F : List (D × S) → α → ℝ) : List (D × S) → QTree D S α → ℝ
+  | μ, .done a => F μ a
+  | μ, .ask d f =>
+    match memo μ d with
+    | some s => exL F μ (f s)
+    | none => (∑ s : S, exL F (μ ++ [(d, s)]) (f s)) / Fintype.card S
+
+theorem exL_done (F : List (D × S) → α → ℝ) (μ : List (D × S)) (a : α) :
+    exL F μ (.done a) = F μ a := by
+  unfold exL
+  rfl
+
+theorem exL_ask_some (F : List (D × S) → α → ℝ) {μ : List (D × S)} {d : D} {s : S}
+    (h : memo μ d = some s) (f : S → QTree D S α) : exL F μ (.ask d f) = exL F μ (f s) := by
+  rw [exL]
+  simp only [h]
+
+theorem exL_ask_none (F : List (D × S) → α → ℝ) {μ : List (D × S)} {d : D}
+    (h : memo μ d = none) (f : S → QTree D S α) :
+    exL F μ (.ask d f) = (∑ s : S, exL F (μ ++ [(d, s)]) (f s)) / Fintype.card S := by
+  rw [exL]
+  simp only [h]
+
+/-- Averages of functions that are termwise close are close. -/
+theorem avg_le_avg_add {ι : Type} [Fintype ι] [Nonempty ι] (A B : ι → ℝ) (e : ℝ)
+    (h : ∀ i, A i ≤ B i + e) :
+    (∑ i, A i) / Fintype.card ι ≤ (∑ i, B i) / Fintype.card ι + e := by
+  have hc : (0 : ℝ) < Fintype.card ι := Nat.cast_pos.mpr Fintype.card_pos
+  rw [div_add' _ _ _ hc.ne', div_le_div_iff_of_pos_right hc]
+  calc ∑ i, A i ≤ ∑ i, (B i + e) := sum_le_sum fun i _ => h i
+    _ = ∑ i, B i + e * Fintype.card ι := by
+      rw [sum_add_distrib]
+      simp [mul_comm]
+
+theorem exL_bind {β : Type} (F : List (D × S) → β → ℝ) (μ : List (D × S)) (t : QTree D S α)
+    (g : α → QTree D S β) :
+    exL F μ (t >>= g) = exL (fun μ' a => exL F μ' (g a)) μ t := by
+  induction t generalizing μ with
+  | done a => rfl
+  | ask d f ih =>
+    change exL F μ (Alg.ask d fun s => f s >>= g) = _
+    unfold exL
+    cases memo μ d with
+    | some s => exact ih s μ
+    | none =>
+      simp only
+      congr 1
+      exact sum_congr rfl fun s _ => ih s _
+
+theorem exL_nonneg (F : List (D × S) → α → ℝ) (hF : ∀ μ a, 0 ≤ F μ a) (μ : List (D × S))
+    (t : QTree D S α) : 0 ≤ exL F μ t := by
+  induction t generalizing μ with
+  | done a => exact hF μ a
+  | ask d f ih =>
+    unfold exL
+    cases memo μ d with
+    | some s => exact ih s μ
+    | none => exact div_nonneg (sum_nonneg fun s _ => ih s _) (Nat.cast_nonneg _)
+
+theorem exL_le_one (F : List (D × S) → α → ℝ) (hF : ∀ μ a, F μ a ≤ 1) (μ : List (D × S))
+    (t : QTree D S α) : exL F μ t ≤ 1 := by
+  have hσ : (0 : ℝ) < Fintype.card S := Nat.cast_pos.mpr Fintype.card_pos
+  induction t generalizing μ with
+  | done a => exact hF μ a
+  | ask d f ih =>
+    unfold exL
+    cases memo μ d with
+    | some s => exact ih s μ
+    | none =>
+      simp only
+      rw [div_le_one hσ]
+      calc ∑ s : S, exL F (μ ++ [(d, s)]) (f s) ≤ ∑ _s : S, (1 : ℝ) :=
+            sum_le_sum fun s _ => ih s _
+        _ = Fintype.card S := by simp
+
+open Classical in
+/-- The sum of `F` over the tables that extend a memory is the lazily sampled
+expectation times the number of those tables. -/
+theorem sum_ext_eq_exL (F : α → ℝ) (t : QTree D S α) (μ : List (D × S)) :
+    ∑ T : D → S, (if Ext μ T then F (eval T t) else 0) =
+      exL (fun _ a => F a) μ t * ∑ T : D → S, (if Ext μ T then (1 : ℝ) else 0) := by
+  have hσ : (0 : ℝ) < Fintype.card S := Nat.cast_pos.mpr Fintype.card_pos
+  induction t generalizing μ with
+  | done a =>
+    rw [mul_sum]
+    refine sum_congr rfl fun T _ => ?_
+    split_ifs <;> simp [exL, eval]
+  | ask d f ih =>
+    cases hm : memo μ d with
+    | some s =>
+      obtain ⟨-, hT⟩ := memo_eq_some hm
+      have hl : ∑ T : D → S, (if Ext μ T then F (eval T (.ask d f)) else 0) =
+          ∑ T : D → S, (if Ext μ T then F (eval T (f s)) else 0) := by
+        refine sum_congr rfl fun T _ => ?_
+        by_cases hE : Ext μ T
+        · simp [hE, eval, hT T hE]
+        · simp [hE]
+      rw [hl, ih s μ]
+      simp [exL, hm]
+    | none =>
+      have hdk := memo_eq_none hm
+      have hden_s : ∀ s : S, (Fintype.card S : ℝ) *
+          (∑ T : D → S, if Ext (μ ++ [(d, s)]) T then (1 : ℝ) else 0) =
+          ∑ T : D → S, if Ext μ T then (1 : ℝ) else 0 := by
+        intro s
+        rw [← sum_fiber d (fun T : D → S => if Ext μ T then (1 : ℝ) else 0)
+          (fun T s' => by simp only [ext_update hdk]) s]
+        congr 1
+        refine sum_congr rfl fun T _ => ?_
+        by_cases h1 : T d = s <;> simp [ext_append, h1]
+      have hnum : ∑ T : D → S, (if Ext μ T then F (eval T (.ask d f)) else 0) =
+          ∑ s : S, ∑ T : D → S,
+            (if Ext (μ ++ [(d, s)]) T then F (eval T (f s)) else 0) := by
+        rw [sum_comm]
+        refine sum_congr rfl fun T _ => ?_
+        rw [sum_eq_single (T d) (fun s _ hs => by simp [ext_append, Ne.symm hs]) (by simp)]
+        simp [ext_append, eval]
+      rw [hnum, sum_congr rfl fun s _ => ih s _]
+      simp only [exL, hm]
+      rw [div_mul_eq_mul_div, eq_div_iff hσ.ne', sum_mul, sum_mul]
+      refine sum_congr rfl fun s _ => ?_
+      rw [← hden_s s]
+      ring
+
+open Classical in
+/-- **The probability of an event of the output is its lazily sampled
+expectation.** -/
+theorem prob_eval_eq_exL (P : α → Prop) (t : QTree D S α) :
+    prob (fun T : D → S => P (eval T t)) = exL (fun _ a => if P a then 1 else 0) [] t := by
+  have h := sum_ext_eq_exL (fun a => if P a then (1 : ℝ) else 0) t []
+  have hE : ∀ T : D → S, Ext ([] : List (D × S)) T := fun T p hp => by simp at hp
+  have hM : (0 : ℝ) < Fintype.card (D → S) := Nat.cast_pos.mpr Fintype.card_pos
+  simp only [hE, ↓reduceIte, sum_const, card_univ, nsmul_eq_mul, mul_one] at h
+  rw [prob_eq_sum, h, mul_div_assoc, div_self hM.ne', mul_one]
 
 end QTree
 

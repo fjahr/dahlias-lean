@@ -126,11 +126,12 @@ def challengerWith
                                      signed := (pm, C.x (C.mulG (τ.sk x)), m) :: st.signed })
       | none => (none, st)
     else (none, st)
+  | .single items, st => challenger C nonceCoef N qs x nonces T (.single items) st
 
 /-- With BIP 459's `Sign` this is the signer of the unforgeability game. -/
 theorem challengerWith_sign (x : ZMod n) (nonces : Fin qs → SecNonce n)
     (T : SigIn N X M → ZMod n) :
-    challengerWith C N qs (fun T => sign C.ops (hashesOf N nonceCoef T)) x nonces T =
+    challengerWith C nonceCoef N qs (fun T => sign C.ops (hashesOf N nonceCoef T)) x nonces T =
       challenger C nonceCoef N qs x nonces T := by
   funext q st
   cases q <;> rfl
@@ -161,10 +162,10 @@ theorem msgSwap_wins (hN : 1 ≤ N) (hqs : 0 < qs) {m m' : M} (hm : m ≠ m') (x
           ((ν ⟨0, hqs⟩).2 : ZMod n) ≠ 0) :
     Wins C nonceCoef N (x : ZMod n) T
       ((msgSwap C nonceCoef N m m' () (C.mulG (x : ZMod n))).run
-        (challengerWith C N qs (fun T => signNoMsgCheck C.ops (hashesOf N nonceCoef T))
+        (challengerWith C nonceCoef N qs (fun T => signNoMsgCheck C.ops (hashesOf N nonceCoef T))
           (x : ZMod n) (fun k => ((ν k).1, (ν k).2)) T) ⟨0, [], []⟩).1
       ((msgSwap C nonceCoef N m m' () (C.mulG (x : ZMod n))).run
-        (challengerWith C N qs (fun T => signNoMsgCheck C.ops (hashesOf N nonceCoef T))
+        (challengerWith C nonceCoef N qs (fun T => signNoMsgCheck C.ops (hashesOf N nonceCoef T))
           (x : ZMod n) (fun k => ((ν k).1, (ν k).2)) T) ⟨0, [], []⟩).2 := by
   set r₁ : ZMod n := ((ν ⟨0, hqs⟩).1 : ZMod n) with hr₁
   set r₂ : ZMod n := ((ν ⟨0, hqs⟩).2 : ZMod n) with hr₂
@@ -207,14 +208,16 @@ theorem msgSwap_wins (hN : 1 ≤ N) (hqs : 0 < qs) {m m' : M} (hm : m ≠ m') (x
       Option.map_some]
     simp only [hashesOf, hL, ↓reduceDIte]
   -- the run
-  have hopen : challengerWith C N qs (fun T => signNoMsgCheck C.ops (hashesOf N nonceCoef T))
+  have hopen : challengerWith C nonceCoef N qs
+      (fun T => signNoMsgCheck C.ops (hashesOf N nonceCoef T))
       (x : ZMod n) (fun k => ((ν k).1, (ν k).2)) T .openSession ⟨0, [], []⟩ =
       (some (C.mulG r₁, C.mulG r₂), ⟨1, [], []⟩) := by
     simp only [challengerWith, hqs, ↓reduceDIte]
     rfl
   have hcond : (0 : ℕ) < qs ∧ 0 < 1 ∧ 0 ∉ ([] : List ℕ) ∧ ((0, 1) : Tweak n).2 ≠ 0 ∧
       ([(C.x P, m')] : List (X × M)).length ≤ N := ⟨hqs, Nat.one_pos, by simp, one_ne_zero, hL⟩
-  have hclose : challengerWith C N qs (fun T => signNoMsgCheck C.ops (hashesOf N nonceCoef T))
+  have hclose : challengerWith C nonceCoef N qs
+      (fun T => signNoMsgCheck C.ops (hashesOf N nonceCoef T))
       (x : ZMod n) (fun k => ((ν k).1, (ν k).2)) T
       (.close 0 (0, 1) m (C.mulG r₁, C.mulG r₂) [(C.x P, m')] [(C.mulG r₁, C.mulG r₂)])
       ⟨1, [], []⟩ =
@@ -227,7 +230,7 @@ theorem msgSwap_wins (hN : 1 ≤ N) (hqs : 0 < qs) {m m' : M} (hm : m ≠ m') (x
     simp only [← hr₁, ← hr₂, hsk, ← hP, hsign]
     rfl
   have hrun : (msgSwap C nonceCoef N m m' () P).run
-      (challengerWith C N qs (fun T => signNoMsgCheck C.ops (hashesOf N nonceCoef T))
+      (challengerWith C nonceCoef N qs (fun T => signNoMsgCheck C.ops (hashesOf N nonceCoef T))
         (x : ZMod n) (fun k => ((ν k).1, (ν k).2)) T) ⟨0, [], []⟩ =
       (⟨[(C.x P, m')], (0, 1), (C.x R, signPost C.ops (r₁, r₂) (x : ZMod n) (R, b)
         (T (⟨[(C.x P, m')], hL⟩, C.x R, (C.x P, m'))))⟩,

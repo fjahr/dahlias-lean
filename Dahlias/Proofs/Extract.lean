@@ -133,15 +133,23 @@ theorem evenScalar_of_fork (hN : N < n) (T : SigIn N X M → ZMod n) {L : List (
 
 variable (xu : (ZMod n)ˣ) (ν : Fin qs → (ZMod n)ˣ × (ZMod n)ˣ)
 
+theorem keySk_eq_sign (x : ZMod n) (keys : List (KeyTerm n M)) :
+    keySk C x keys =
+      (keys.map fun κ => κ.2.2 * (keySign C (C.mulG x) κ.1 * κ.1.sk x)).sum := by
+  unfold keySk
+  refine congrArg List.sum (List.map_congr_left fun κ _ => ?_)
+  rw [evenScalar_sk]
+  simp only [Tweak.sk]
+  ring
+
 /-- **`r₁ + b⋅r₂` from a record and the secret key.** -/
 theorem CloseRec.w_eq {r : CloseRec n E X M} (h : RecSig C qs xu ν r) :
     ∃ hk : r.k < qs, r.w C (C.mulG (xu : ZMod n)) xu =
       (noncesOf qs ν ⟨r.k, hk⟩).1 + r.Rb.2 * (noncesOf qs ν ⟨r.k, hk⟩).2 := by
   obtain ⟨hk, hs⟩ := h
   refine ⟨hk, ?_⟩
-  simp only [CloseRec.w, hs, signPost, tweak_pk, ops_hasEvenY, ops_evenScalar, Curve.evenScalar]
+  simp only [CloseRec.w, hs, sigOf, ← keySk_eq_sign]
   by_cases h1 : C.hasEvenY r.Rb.1 = true <;>
-    by_cases h2 : C.hasEvenY (C.mulG (r.τ.sk xu)) = true <;>
-    simp only [h1, h2, ite_true, ite_false, Bool.false_eq_true] <;> ring
+    simp only [h1, ite_true, ite_false, Bool.false_eq_true] <;> ring
 
 end Dahlias.Security

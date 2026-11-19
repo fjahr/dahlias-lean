@@ -44,7 +44,7 @@ theorem simRel_init (T : SigIn N X M → ZMod n) (c₀ : List (CloseRec n E X M)
   chals := hu
   signer := rfl
   recs := rfl
-  inv := fun r hr => by simp at hr
+  inv := ⟨by simp, fun r hr => by simp at hr⟩
   cache := ⟨[], rfl, rfl, by simp, by simp, by simp⟩
 
 /-- **A fork solves AOMDL or gives a collision.** -/
@@ -70,7 +70,8 @@ theorem fork_to_omdl (hN : N < n) (p : ForgeSample n N qs X M Coins × ZMod n)
   have hinv : ∀ T' : SigIn N X M → ZMod n,
       LogInv C nonceCoef N qs (xu : ZMod n) (noncesOf qs ν) T'
         (gameRecs C nonceCoef N qs A (xu, ν, coins, T) T').2 := fun T' =>
-    run_logInv C nonceCoef N qs (xu : ZMod n) (noncesOf qs ν) T' _ _ (fun r hr => by simp at hr)
+    run_logInv C nonceCoef N qs (xu : ZMod n) (noncesOf qs ν) T' _ _
+      ⟨by simp, fun r hr => by simp at hr⟩
   rw [he] at hsel₁ hsel₂
   set G₁ := gameRecs C nonceCoef N qs A (xu, ν, coins, T) T with hG₁
   set G₂ := gameRecs C nonceCoef N qs A (xu, ν, coins, T) (update T z s) with hG₂
@@ -123,7 +124,7 @@ theorem fork_to_omdl (hN : N < n) (p : ForgeSample n N qs X M Coins × ZMod n)
   rw [Alg.run_bind]
   have hc₀ : ∀ r ∈ r₁.1.2.cache, RecSig C qs xu ν r := by
     rw [hcache1]
-    exact fun r hr => ((hinv₁ r (hnew1 r hr)).1).recSig
+    exact fun r hr => ((hinv₁.2 r (hnew1 r hr)).1).recSig
   have S2 := sim_run C nonceCoef N qs xu ν (update T z s) r₁.1.2.cache r₁.2.2 hc₀
     (A coins (C.mulG (xu : ZMod n))) (⟨⟨0, [], []⟩, [], r₁.1.2.cache⟩, r₁.2) (⟨0, [], []⟩, [])
     (simRel_init C nonceCoef N qs xu ν (update T z s) r₁.1.2.cache r₁.2 hch1)
@@ -143,7 +144,7 @@ theorem fork_to_omdl (hN : N < n) (p : ForgeSample n N qs X M Coins × ZMod n)
     rw [hcache2]
     intro r hr
     rcases List.mem_append.mp hr with h | h
-    · exact ((hinv₂ r (hnew2 r h)).1).recSig
+    · exact ((hinv₂.2 r (hnew2 r h)).1).recSig
     · exact hc₀ r h
   have hlenc : ∀ k, (entries k r₂.1.2.cache).length ≤ 2 := by
     intro k
@@ -182,16 +183,14 @@ theorem fork_to_omdl (hN : N < n) (p : ForgeSample n N qs X M Coins × ZMod n)
     have hpt := hpts2 a ha2.1 a' (by rw [hcache1]; exact ha1.1) hk
     intro hbeq
     apply hpt
-    obtain ⟨okA', -, hsgnA'⟩ := hinv₁ a' (hnew1 a' ha1.1)
-    obtain ⟨okA, -, -⟩ := hinv₂ a (hnew2 a ha2.1)
+    obtain ⟨okA', -, hsgnA'⟩ := hinv₁.2 a' (hnew1 a' ha1.1)
+    obtain ⟨okA, -, -⟩ := hinv₂.2 a (hnew2 a ha2.1)
     have hbA : a.Rb.2 = ncHash nonceCoef a.ncIn := by
-      obtain ⟨hkq, -, -, hpre, -, -⟩ := okA
-      obtain ⟨-, j, -, -, hsv⟩ := signPre_some C hpre
-      exact (getSessionValues_some C hsv).2.1
+      obtain ⟨-, -, -, hb, -⟩ := okA
+      exact hb
     have hbA' : a'.Rb.2 = ncHash nonceCoef a'.ncIn := by
-      obtain ⟨hkq, -, -, hpre, -, -⟩ := okA'
-      obtain ⟨-, j, -, -, hsv⟩ := signPre_some C hpre
-      exact (getSessionValues_some C hsv).2.1
+      obtain ⟨-, -, -, hb, -⟩ := okA'
+      exact hb
     have hnceq : a'.ncIn = a.ncIn := by
       by_contra hne
       exact hcol a' (hnew1 a' ha1.1) a (hnew2 a ha2.1) hk.symm
@@ -199,14 +198,14 @@ theorem fork_to_omdl (hN : N < n) (p : ForgeSample n N qs X M Coins × ZMod n)
     refine (point_eq_of_ncIn_eq C nonceCoef N qs (xu : ZMod n) (noncesOf qs ν) T (update T z s)
       (C.mulG (xu : ZMod n)) (Uof C qs xu ν) okA' okA hk.symm hnceq ?_
       (fun τ => tweak_pk C τ (xu : ZMod n))).symm
-    intro hNa
+    intro hNa κ hκ
     refine update_of_ne ?_ _ _
     intro hkey
     rw [hze] at hkey
     simp only [Prod.mk.injEq, Subtype.mk.injEq] at hkey
     apply hens
     rw [← hkey.1, ← hkey.2.2]
-    exact hsgnA'
+    exact hsgnA' κ hκ
   obtain ⟨-, g2, g3, g4⟩ := run_solveSessions C qs xu ν r₂.1.2.cache hsigc hlenc hbc qs le_rfl
     r₂.2.2
   set sols := (solveSessions C qs (C.mulG (xu : ZMod n)) r₂.1.2.cache qs).run

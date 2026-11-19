@@ -54,7 +54,7 @@ open Classical in
 /-- **The whole game as one algorithm**: the adversary with the honest signer,
 then the verifier. The output says whether the adversary wins. -/
 noncomputable def winTree : QTree (SigIn N X M) (ZMod n) Bool :=
-  Alg.interp (treeChallenger C nonceCoef N qs x nonces) (A coins (C.mulG x)) ⟨0, [], []⟩ >>=
+  Alg.interp (treeChallenger false C nonceCoef N qs x nonces) (A coins (C.mulG x)) ⟨0, [], []⟩ >>=
     fun out =>
       if h : out.1.L.length ≤ N then
         askAll (out.1.L.map fun e => ((⟨out.1.L, h⟩ : BList N X M), out.1.sig.1, e)) >>= fun cs =>
@@ -92,8 +92,8 @@ theorem length_fresh_winTree (T : SigIn N X M → ZMod n) (qh : ℕ)
     (fresh T (winTree C nonceCoef N qs x nonces A coins)).length ≤ qh + qs + N := by
   unfold winTree
   rw [fresh_bind]
-  have h := length_flog_interp C nonceCoef N qs x nonces T (A coins (C.mulG x)) qh hA
-    ⟨0, [], []⟩ [] ⟨List.nodup_nil, by simp⟩
+  have h := length_flog_interp false C nonceCoef N qs x nonces T (A coins (C.mulG x)) qh hA
+    ⟨0, [], []⟩ [] ⟨List.nodup_nil, by simp, Nat.zero_le _⟩
   simp only [List.length_nil, zero_add, Nat.sub_zero] at h
   split_ifs with hL
   · rw [flog_bind]
@@ -119,7 +119,7 @@ def lazyExperiment (q : ℕ) (ω : LazySample n qs q Coins) : Prop :=
 /-- **The game with a lazily sampled random oracle has the same advantage.** -/
 theorem forgeAdvantage_eq_lazy (qh : ℕ) (hA : ∀ coins P, HashBound (A coins P) qh) :
     forgeAdvantage C nonceCoef N qs A = prob (lazyExperiment C nonceCoef N qs A (qh + qs + N)) := by
-  unfold forgeAdvantage
+  unfold forgeAdvantage forgeAdvantageG
   refine prob_prod_congr _ _ fun u => prob_prod_congr _ _ fun ν => prob_prod_congr _ _ fun c => ?_
   have h := prob_eval_eq_lazy (fun b : Bool => b = true) (qh + qs + N)
     (winTree C nonceCoef N qs (u : ZMod n) (fun k => ((ν k).1, (ν k).2)) A c)

@@ -55,7 +55,7 @@ theorem guesser_wins (hN : 1 ≤ N) (m₀ : M) (x r : (ZMod n)ˣ)
             (C.x (C.mulG (x : ZMod n)), m₀)) * C.evenScalar (x : ZMod n))⟩, ⟨0, [], []⟩) := by
     simp only [guesser, hN, ↓reduceDIte]
     rfl
-  unfold forgeExperiment
+  unfold forgeExperiment forgeExperimentG
   dsimp only
   rw [hrun]
   refine ⟨one_ne_zero, by rw [hsk]; exact hx, hL, ⟨m₀, by simp [hsk], by simp⟩, ?_⟩
@@ -73,7 +73,7 @@ set_option synthInstance.maxSize 2000 in
 /-- **The guesser's advantage is positive.** -/
 theorem guesser_advantage_pos (hN : 1 ≤ N) (m₀ : M) :
     0 < forgeAdvantage C nonceCoef N qs (guesser C N m₀) := by
-  unfold forgeAdvantage
+  unfold forgeAdvantage forgeAdvantageG
   apply prob_pos
   exact ⟨(1, fun _ => (1, 1), (1, 1), fun _ => 0), guesser_wins C nonceCoef N qs hN m₀ 1 1 _ _⟩
 

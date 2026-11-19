@@ -313,7 +313,7 @@ theorem nonceGen_advantage (g : (ZMod n)ˣ → W) (hg : Injective g) (hρ : ∀ 
           rw [show (2 * qs : ℕ) = qs * 2 from mul_comm 2 qs]
           exact this
     refine hs.trans (add_le_add (le_of_eq ?_) le_rfl)
-    unfold forgeAdvantage
+    unfold forgeAdvantage forgeAdvantageG
     rw [← prob_equiv (toForgeSample (n := n) (N := N) (X := X) (M := M) (Coins := Coins)
       (Rnd := Rnd) (Ex := Ex) (W := W) qs) (forgeExperiment C nonceCoef N qs (withTable N A))]
     congr 1
@@ -335,6 +335,7 @@ theorem nonceGen_unforgeable (g : (ZMod n)ˣ → W) (hg : Injective g) (hρ : �
       Real.sqrt ((qh + qs + 1 : ℕ) *
           (omdlAdvantage C (2 * qs + 1) (reduction C nonceCoef N qs (withTable N A)) +
             collisionAdvantage C nonceCoef N qs (withTable N A))) + (qh + qs + 1 : ℕ) / n +
+        qs / (n - 1 : ℝ) +
         (qs : ℝ) ^ 2 / Fintype.card Rnd + qs * (qn / Fintype.card Rnd) +
         (2 * qs : ℕ) * ((Fintype.card W - Fintype.card (ZMod n)ˣ : ℝ) / Fintype.card W) := by
   have h1 := nonceGen_advantage C nonceCoef N qs A ρ ex g hg hρ qn hA

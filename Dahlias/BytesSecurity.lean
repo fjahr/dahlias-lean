@@ -59,7 +59,8 @@ theorem bytes_unforgeable {Coins : Type} [Fintype Coins] (N qs : ℕ)
     forgeAdvantage secp256k1X nonceCoef32 N qs A ≤
       Real.sqrt ((qh + qs + 1 : ℕ) *
         (omdlAdvantage secp256k1X (2 * qs + 1) (reduction secp256k1X nonceCoef32 N qs A) +
-          collisionAdvantage secp256k1X nonceCoef32 N qs A)) + (qh + qs + 1 : ℕ) / n :=
+          collisionAdvantage secp256k1X nonceCoef32 N qs A)) + (qh + qs + 1 : ℕ) / n +
+        qs / (n - 1 : ℝ) :=
   unforgeable_sqrt secp256k1X nonceCoef32 N qs A hN qh hA
 
 set_option synthInstance.maxSize 2000 in

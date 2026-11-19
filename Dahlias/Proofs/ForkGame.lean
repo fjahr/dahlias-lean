@@ -27,7 +27,7 @@ def noncesOf (ν : Fin qs → (ZMod n)ˣ × (ZMod n)ˣ) : Fin qs → SecNonce n 
 /-- The game algorithm of a sample without its table. -/
 def sampleTree (ω : (ZMod n)ˣ × (Fin qs → (ZMod n)ˣ × (ZMod n)ˣ) × Coins) :
     QTree (SigIn N X M) (ZMod n) (Forgery n X M × SignerState X M) :=
-  gameTree C nonceCoef N qs (ω.1 : ZMod n) (noncesOf qs ω.2.1) A ω.2.2
+  gameTree true C nonceCoef N qs (ω.1 : ZMod n) (noncesOf qs ω.2.1) A ω.2.2
 
 /-- **The fork event**: the adversary forges on the sample, and forges again
 with the same fork point when the table gets the new value `s` there. -/
@@ -36,10 +36,10 @@ def ForkEvent (p : ForgeSample n N qs X M Coins × ZMod n) : Prop :=
     (gameSel C nonceCoef N (p.1.1 : ZMod n)) p.1.2.2.2 p.2
 
 theorem forgeExperiment_iff (ω : ForgeSample n N qs X M Coins) :
-    forgeExperiment C nonceCoef N qs A ω ↔
+    forgeExperimentG true C nonceCoef N qs A ω ↔
       Accepts (sampleTree C nonceCoef N qs A (ω.1, ω.2.1, ω.2.2.1))
         (gameSel C nonceCoef N (ω.1 : ZMod n)) ω.2.2.2 :=
-  wins_iff_accepts C nonceCoef N qs (ω.1 : ZMod n) (noncesOf qs ω.2.1) A ω.2.2.1 ω.2.2.2
+  wins_iff_accepts true C nonceCoef N qs (ω.1 : ZMod n) (noncesOf qs ω.2.1) A ω.2.2.1 ω.2.2.2
 
 variable [Fintype Coins] [Fintype (SigIn N X M)]
 
@@ -60,19 +60,19 @@ def splitTable :
 
 /-- **Forking the unforgeability game.** -/
 theorem forge_fork (qh : ℕ) (hA : ∀ coins P, HashBound (A coins P) qh) :
-    forgeAdvantage C nonceCoef N qs A *
-        (forgeAdvantage C nonceCoef N qs A / (qh + qs + 1 : ℕ) - 1 / n) ≤
+    forgeAdvantageG true C nonceCoef N qs A *
+        (forgeAdvantageG true C nonceCoef N qs A / (qh + qs + 1 : ℕ) - 1 / n) ≤
       prob (ForkEvent C nonceCoef N qs A) := by
   have h := localFork_prob (S := ZMod n) (q := qh + qs + 1) (Nat.succ_pos _)
     (sampleTree C nonceCoef N qs A) (fun ω => gameSel C nonceCoef N (ω.1 : ZMod n))
-    (fun ω T => length_fresh_gameTree C nonceCoef N qs (ω.1 : ZMod n) (noncesOf qs ω.2.1) A
+    (fun ω T => length_fresh_gameTree true C nonceCoef N qs (ω.1 : ZMod n) (noncesOf qs ω.2.1) A
       ω.2.2 T qh (hA _ _))
-  have hadv : forgeAdvantage C nonceCoef N qs A =
+  have hadv : forgeAdvantageG true C nonceCoef N qs A =
       prob fun p : ((ZMod n)ˣ × (Fin qs → (ZMod n)ˣ × (ZMod n)ˣ) × Coins) ×
         (SigIn N X M → ZMod n) =>
           Accepts (sampleTree C nonceCoef N qs A p.1)
             (gameSel C nonceCoef N (p.1.1 : ZMod n)) p.2 := by
-    unfold forgeAdvantage
+    unfold forgeAdvantageG
     rw [← prob_equiv (splitTable N qs)]
     congr 1
     funext p

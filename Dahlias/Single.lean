@@ -21,9 +21,9 @@ So `signSingle` and the protocol produce the same signature for the same
 `R`: the only valid one. They differ in how `R` is distributed, uniform for
 `signSingle` and `R₁ + b⋅R₂` for the protocol.
 
-What is not proven here is unforgeability in a game in which the adversary
-may also ask an honest party for such signatures. That needs a simulation of
-`signSingle` without the secret keys, by programming the random oracle.
+The unforgeability game of `Dahlias.Security` lets the adversary ask the
+honest signer for such signatures, next to its sessions
+(`Dahlias.Security.challenger_single`), and `unforgeable_sqrt` covers them.
 -/
 
 set_option linter.unusedSectionVars false

@@ -228,6 +228,45 @@ theorem subset_flog_queryAll (T : D → S) (l l' : List D) :
     · exact mem_flog_ask T l y _
     · exact ih _ hy
 
+omit [DecidableEq D] in
+/-- Running an algorithm whose queries are answered by query algorithms: on a
+table, every answer is the handler's value. -/
+theorem eval_interp_of {Q : Type} {R : Q → Type} {σ : Type}
+    (h : (q : Q) → σ → QTree D S (R q × σ)) (g : (q : Q) → σ → R q × σ) (T : D → S)
+    (hg : ∀ q st, eval T (h q st) = g q st) (t : Alg Q R α) (st : σ) :
+    eval T (Alg.interp h t st) = t.run g st := by
+  induction t generalizing st with
+  | done a => rfl
+  | ask q f ih =>
+    rw [Alg.interp_ask, eval_bind, hg, Alg.run_ask]
+    exact ih _ _
+
+/-- Query every point of a list and return the answers. -/
+def askAll : List D → QTree D S (List S)
+  | [] => .done []
+  | d :: l => .ask d fun s => askAll l >>= fun cs => .done (s :: cs)
+
+omit [DecidableEq D] in
+theorem eval_askAll (T : D → S) (l : List D) : eval T (askAll l) = l.map T := by
+  induction l with
+  | nil => rfl
+  | cons d l ih =>
+    change eval T (askAll l >>= fun cs => .done (T d :: cs)) = _
+    rw [eval_bind, ih]
+    rfl
+
+theorem length_flog_askAll (T : D → S) (l l' : List D) :
+    (flog T l (askAll l')).length ≤ l.length + l'.length := by
+  induction l' generalizing l with
+  | nil => simp [askAll, flog]
+  | cons d l' ih =>
+    change (flog T (if d ∈ l then l else l ++ [d])
+      (askAll l' >>= fun cs => .done (T d :: cs))).length ≤ _
+    rw [flog_bind]
+    change (flog T _ (askAll l')).length ≤ _
+    refine (ih _).trans ?_
+    split_ifs <;> (simp; try omega)
+
 end QTree
 
 end Dahlias

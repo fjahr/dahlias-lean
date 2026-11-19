@@ -22,34 +22,6 @@ variable {n : ℕ} [Fact n.Prime] {E X M : Type} [AddCommGroup E] [DecidableEq E
 
 /-! ## What the checks of `Sign` determine -/
 
-theorem getSessionValues_some {H : Hashes n E X M} {agg : PubNonce E} {pm : List (X × M)}
-    {pubs : List (PubNonce E)} {Rb : E × ZMod n}
-    (h : getSessionValues C.ops H agg pm pubs = some Rb) :
-    pm.length = pubs.length ∧ Rb.2 = H.nonceCoef agg.1 agg.2 (coefItems pm pubs) ∧
-      Rb.1 = agg.1 + Rb.2.val • agg.2 := by
-  unfold getSessionValues at h
-  dsimp only at h
-  split_ifs at h with h1 h2
-  push Not at h1
-  cases Option.some.inj h
-  exact ⟨h1.2.1, rfl, rfl⟩
-
-theorem signPre_some {H : Hashes n E X M} {r₁ r₂ d : ZMod n} {m : M} {agg : PubNonce E}
-    {pm : List (X × M)} {pubs : List (PubNonce E)} {Rb : E × ZMod n}
-    (h : signPre C.ops H (r₁, r₂) d m agg pm pubs = some Rb) :
-    d ≠ 0 ∧ ∃ j, matchIdxs pubs (C.mulG r₂) = [j] ∧ pm[j]? = some (C.x (C.mulG d), m) ∧
-      getSessionValues C.ops H agg pm pubs = some Rb := by
-  unfold signPre at h
-  dsimp only at h
-  split_ifs at h with h0
-  push Not at h0
-  refine ⟨h0.2.2, ?_⟩
-  split at h
-  · rename_i j hj
-    split_ifs at h with hpm
-    exact ⟨j, hj, hpm, h⟩
-  · exact absurd h (by simp)
-
 omit [Fact n.Prime] [AddCommGroup E] [DecidableEq E] [DecidableEq X] [DecidableEq M] in
 theorem coefItems_fst : ∀ (pm : List (X × M)) (pubs : List (PubNonce E)),
     pm.length = pubs.length → (coefItems pm pubs).map (fun t => (t.1, t.2.1)) = pm
@@ -92,50 +64,79 @@ theorem evenLift_eq_of_x {P P' : E} (hP : P ≠ 0) (hP' : P' ≠ 0) (h : C.x P =
 
 variable (x : ZMod n) (nonces : Fin qs → SecNonce n)
 
-/-- **Records of one session with the same nonce coefficient input have the
-same query point**, if the tables agree on the first record's oracle input. -/
+/-- The entry `(pk, m)` of a key term. -/
+def KeyTerm.entry (κ : KeyTerm n M) : X × M := (C.x (C.mulG (κ.1.sk x)), κ.2.1)
+
+/-- The key part of a query point, from the entries and the table. -/
+theorem keyPoint_eq_entries (P : E) (hP : ∀ τ : Tweak n, τ.pk C P = C.mulG (τ.sk x))
+    (T : SigIn N X M → ZMod n) {pm : List (X × M)} (hN : pm.length ≤ N) (r : X)
+    (keys : List (KeyTerm n M))
+    (hkeys : ∀ κ ∈ keys, κ.1.sk x ≠ 0 ∧ κ.2.2 = T (⟨pm, hN⟩, r, κ.entry C x)) :
+    keyPoint C P keys = ((keys.map (KeyTerm.entry C x)).map fun e =>
+      (T (⟨pm, hN⟩, r, e)).val • (C.liftX e.1).getD 0).sum := by
+  unfold keyPoint
+  rw [List.map_map]
+  refine congrArg List.sum (List.map_congr_left fun κ hκ => ?_)
+  obtain ⟨hd, hc⟩ := hkeys κ hκ
+  have hl : C.liftX (C.x (C.mulG (κ.1.sk x))) = some (evenLift C (C.mulG (κ.1.sk x))) :=
+    liftX_x_signOf C (C.mulG_ne_zero hd)
+  simp only [Function.comp_apply, KeyTerm.entry, hl, Option.getD_some, hP]
+  rw [hc]
+  rfl
+
+/-- **Records of one slot with the same nonce coefficient input have the same
+query point**, if the tables agree on the first record's oracle inputs. -/
 theorem point_eq_of_ncIn_eq (T T' : SigIn N X M → ZMod n) (P : E) (U : ℕ → PubNonce E)
     {a a' : CloseRec n E X M}
     (ha : RecOk C nonceCoef N qs x nonces T a) (ha' : RecOk C nonceCoef N qs x nonces T' a')
     (hk : a.k = a'.k) (hnc : a.ncIn = a'.ncIn)
-    (hT : ∀ hN : a.pm.length ≤ N,
-      T' (⟨a.pm, hN⟩, C.x a.Rb.1, (C.x (C.mulG (a.τ.sk x)), a.m)) =
-        T (⟨a.pm, hN⟩, C.x a.Rb.1, (C.x (C.mulG (a.τ.sk x)), a.m)))
+    (hT : ∀ (hN : a.pm.length ≤ N), ∀ κ ∈ a.keys,
+      T' (⟨a.pm, hN⟩, C.x a.Rb.1, κ.entry C x) = T (⟨a.pm, hN⟩, C.x a.Rb.1, κ.entry C x))
     (hP : ∀ τ : Tweak n, τ.pk C P = C.mulG (τ.sk x)) :
     a.point C P U = a'.point C P U := by
-  obtain ⟨hkq, hN, -, hpre, hc, -⟩ := ha
-  obtain ⟨hkq', hN', -, hpre', hc', -⟩ := ha'
-  obtain ⟨hd, j, hj, hpm, hsv⟩ := signPre_some C hpre
-  obtain ⟨hd', j', hj', hpm', hsv'⟩ := signPre_some C hpre'
-  obtain ⟨hlen, hb, hR⟩ := getSessionValues_some C hsv
-  obtain ⟨hlen', hb', hR'⟩ := getSessionValues_some C hsv'
-  simp only [CloseRec.ncIn, Prod.mk.injEq] at hnc
-  obtain ⟨hagg1, hagg2, hitems⟩ := hnc
-  -- the session values agree
-  have hRb : a.Rb = a'.Rb := by
-    have h2 : a.Rb.2 = a'.Rb.2 := by rw [hb, hb', hagg1, hagg2, hitems]
-    exact Prod.ext (by rw [hR, hR', hagg1, hagg2, h2]) h2
-  -- the lists agree
+  obtain ⟨hkq, hN, hlen, hb, -, hkeys, hkind⟩ := ha
+  obtain ⟨hkq', hN', hlen', hb', -, hkeys', hkind'⟩ := ha'
+  have hnc' := hnc
+  simp only [CloseRec.ncIn, Prod.mk.injEq] at hnc'
+  obtain ⟨hagg1, hagg2, hitems⟩ := hnc'
+  have hb2 : a.Rb.2 = a'.Rb.2 := by rw [hb, hb', hnc]
   have hpmeq : a.pm = a'.pm := by
     rw [← coefItems_fst a.pm a.pubs hlen, ← coefItems_fst a'.pm a'.pubs hlen', hitems]
-  have hsnd : a.pubs.map Prod.snd = a'.pubs.map Prod.snd := by
-    rw [← coefItems_snd a.pm a.pubs hlen, ← coefItems_snd a'.pm a'.pubs hlen', hitems]
-  -- so does the signer's entry
   have hfin : (⟨a.k, hkq⟩ : Fin qs) = ⟨a'.k, hkq'⟩ := Fin.ext hk
-  rw [matchIdxs_congr hsnd, hfin, hj'] at hj
-  cases List.cons.inj hj |>.1
-  rw [hpmeq, hpm'] at hpm
-  simp only [Option.some.injEq, Prod.mk.injEq] at hpm
-  obtain ⟨hx, hm⟩ := hpm
-  -- and the challenge
-  have hceq : a.c = a'.c := by
-    rw [hc, hc', ← hT hN]
-    congr 1
-    simp only [Prod.mk.injEq, Subtype.mk.injEq]
-    exact ⟨hpmeq, by rw [hRb], hx.symm, hm.symm⟩
-  simp only [CloseRec.point, dlogPoint, hP, hk, hRb, hceq]
-  congr 2
-  exact (evenLift_eq_of_x C (C.mulG_ne_zero hd') (C.mulG_ne_zero hd) hx).symm
+  -- the nonce point and the entries agree
+  have hmain : a.Rb.1 = a'.Rb.1 ∧
+      a.keys.map (KeyTerm.entry C x) = a'.keys.map (KeyTerm.entry C x) := by
+    rcases hkind with ⟨τ, m, c, hks, hpre⟩ | ⟨hagg, hent, hR⟩
+    · obtain ⟨hd, j, hj, hpm, hsv⟩ := signPre_some C hpre
+      obtain ⟨-, -, hR, hne⟩ := getSessionValues_some C hsv
+      rcases hkind' with ⟨τ', m', c', hks', hpre'⟩ | ⟨hagg', -, -⟩
+      · obtain ⟨hd', j', hj', hpm', hsv'⟩ := signPre_some C hpre'
+        obtain ⟨-, -, hR', -⟩ := getSessionValues_some C hsv'
+        have hsnd : a.pubs.map Prod.snd = a'.pubs.map Prod.snd := by
+          rw [← coefItems_snd a.pm a.pubs hlen, ← coefItems_snd a'.pm a'.pubs hlen', hitems]
+        rw [matchIdxs_congr hsnd, hfin, hj'] at hj
+        cases List.cons.inj hj |>.1
+        rw [hpmeq, hpm'] at hpm
+        refine ⟨by rw [hR, hR', hagg1, hagg2, hb2], ?_⟩
+        rw [hks, hks']
+        simp only [List.map_cons, List.map_nil, KeyTerm.entry]
+        exact congrArg (fun e => [e]) (Option.some.inj hpm).symm
+      · exact absurd (hagg1.trans (congrArg Prod.fst hagg')) hne
+    · rcases hkind' with ⟨τ', m', c', hks', hpre'⟩ | ⟨hagg', hent', hR'⟩
+      · obtain ⟨-, j', -, -, hsv'⟩ := signPre_some C hpre'
+        obtain ⟨-, -, -, hne'⟩ := getSessionValues_some C hsv'
+        exact absurd (hagg1.symm.trans (congrArg Prod.fst hagg)) hne'
+      · exact ⟨by rw [hR, hR', hfin, hb2], hent.trans (hpmeq.trans hent'.symm)⟩
+  obtain ⟨hR1, hents⟩ := hmain
+  have hRb : a.Rb = a'.Rb := Prod.ext hR1 hb2
+  simp only [CloseRec.point, dlogPoint, hk, hRb]
+  congr 1
+  rw [keyPoint_eq_entries C N x P hP T hN (C.x a.Rb.1) a.keys hkeys,
+    keyPoint_eq_entries C N x P hP T' hN' (C.x a'.Rb.1) a'.keys hkeys', ← hents, ← hR1]
+  refine congrArg List.sum (List.map_congr_left fun e he => ?_)
+  obtain ⟨κ, hκ, rfl⟩ := List.mem_map.mp he
+  have hsub : (⟨a'.pm, hN'⟩ : BList N X M) = ⟨a.pm, hN⟩ := Subtype.ext hpmeq.symm
+  rw [hsub, hT hN κ hκ]
 
 /-! ## The collision finder -/
 

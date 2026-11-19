@@ -11,7 +11,9 @@ import Dahlias.Alg
 import Dahlias.QueryRun
 import Dahlias.Fork
 import Dahlias.Security
+import Dahlias.Derived
 import Dahlias.Unforgeability
+import Dahlias.SingleGame
 import Dahlias.Lazy
 import Dahlias.LazyGame
 import Dahlias.NonceProb
@@ -71,6 +73,14 @@ set_option linter.style.longLine false
 /-- info: 'Dahlias.sigAgg_eq_signSingle' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Dahlias.sigAgg_eq_signSingle
+
+/-- info: 'Dahlias.Security.challenger_single' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.challenger_single
+
+/-- info: 'Dahlias.Security.forgeAdvantage_le_derived' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.forgeAdvantage_le_derived
 
 /-! ## Correctness on bytes (inherits taproot-lean's `native_decide` computation of `n·G = 0`) -/
 

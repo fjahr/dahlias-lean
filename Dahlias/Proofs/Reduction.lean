@@ -44,24 +44,50 @@ def signPrePub (H : Hashes n E X M) (R₂ Pt : E) (m : M) (agg : PubNonce E)
   | [j] => if pm[j]? = some (C.x Pt, m) then getSessionValues C.ops H agg pm pubnonces else none
   | _ => none
 
-/-- The point whose discrete logarithm is the partial signature: `e⋅(R₁ + b⋅R₂) + c⋅P'` with
-`P'` the even-y version of the tweaked key. -/
-def dlogPoint (U : PubNonce E) (Pt : E) (Rb : E × ZMod n) (c : ZMod n) : E :=
-  C.ops.signOf Rb.1 (U.1 + Rb.2.val • U.2) + c.val • evenLift C Pt
+/-- A key term of a signature of the honest signer: the tweak, the message and
+the challenge. A partial signature has one, a single-party signature has one
+for every entry of its list. -/
+abbrev KeyTerm (n : ℕ) (M : Type) := Tweak n × M × ZMod n
+
+/-- `c₀⋅P'₀ + c₁⋅P'₁ + …` with `P'ᵢ` the even-y versions of the tweaked keys. -/
+def keyPoint (P : E) (keys : List (KeyTerm n M)) : E :=
+  (keys.map fun κ => κ.2.2.val • evenLift C (κ.1.pk C P)).sum
+
+/-- The discrete logarithm of `keyPoint`, from the secret key. -/
+def keySk (x : ZMod n) (keys : List (KeyTerm n M)) : ZMod n :=
+  (keys.map fun κ => κ.2.2 * C.evenScalar (κ.1.sk x)).sum
+
+/-- The signature scalar: `e⋅(r₁ + b⋅r₂)` plus the key part. -/
+def sigOf (secnonce : SecNonce n) (Rb : E × ZMod n) (ks : ZMod n) : ZMod n :=
+  (if C.hasEvenY Rb.1 then secnonce.1 + Rb.2 * secnonce.2
+    else -(secnonce.1 + Rb.2 * secnonce.2)) + ks
+
+/-- The point whose discrete logarithm the honest signer returns:
+`e⋅(R₁ + b⋅R₂)` plus the key part. -/
+def dlogPoint (U : PubNonce E) (Rb : E × ZMod n) (K : E) : E :=
+  C.ops.signOf Rb.1 (U.1 + Rb.2.val • U.2) + K
+
+/-- The list of a single-party signing query, from the public key point. -/
+def singleKeysPub (P : E) (items : List (Tweak n × M)) : List (X × M) :=
+  items.map fun i => (C.x (i.1.pk C P), i.2)
+
+/-- The key terms of a single-party signature. -/
+def singleTerms (items : List (Tweak n × M)) (cs : List (ZMod n)) : List (KeyTerm n M) :=
+  List.zipWith (fun (i : Tweak n × M) c => (i.1, i.2, c)) items cs
 
 /-! ## Records of closed sessions -/
 
-/-- A successful `Sign` of the honest signer: the session, the inputs, the
-session values `(R, b)`, the challenge and the partial signature. -/
+/-- A signature of the honest signer: the slot, the key terms, the inputs, the
+values `(R, b)` and the signature scalar. A single-party signature is recorded
+with the aggregate nonce `(0, 0)` and public nonces `(0, 0)`, which makes
+`ncIn` the input its coefficient `b` is derived from. -/
 structure CloseRec (n : ℕ) (E X M : Type) where
   k : ℕ
-  τ : Tweak n
-  m : M
+  keys : List (KeyTerm n M)
   agg : PubNonce E
   pm : List (X × M)
   pubs : List (PubNonce E)
   Rb : E × ZMod n
-  c : ZMod n
   s : ZMod n
 
 /-- The input of the nonce coefficient hash in a record. -/
@@ -78,8 +104,8 @@ def logChallenger (x : ZMod n) (nonces : Fin qs → SecNonce n) (T : SigIn N X M
       AdvR q × (SignerState X M × List (CloseRec n E X M))
   | .hash z, st => (T z, st)
   | .openSession, st =>
-    ((challenger C nonceCoef N qs x nonces T .openSession st.1).1,
-      ((challenger C nonceCoef N qs x nonces T .openSession st.1).2, st.2))
+    ((challengerG true C nonceCoef N qs x nonces T .openSession st.1).1,
+      ((challengerG true C nonceCoef N qs x nonces T .openSession st.1).2, st.2))
   | .close k τ m agg pm pubnonces, st =>
     if h : k < qs ∧ k < st.1.opened ∧ k ∉ st.1.closed ∧ τ.2 ≠ 0 ∧ pm.length ≤ N then
       match signPre C.ops (H₀ nonceCoef N) (nonces ⟨k, h.1⟩) (τ.sk x) m agg pm pubnonces with
@@ -88,8 +114,27 @@ def logChallenger (x : ZMod n) (nonces : Fin qs → SecNonce n) (T : SigIn N X M
         let s := signPost C.ops (nonces ⟨k, h.1⟩) (τ.sk x) Rb c
         (some s, ({ st.1 with closed := k :: st.1.closed
                               signed := (pm, C.x (C.mulG (τ.sk x)), m) :: st.1.signed },
-          ⟨k, τ, m, agg, pm, pubnonces, Rb, c, s⟩ :: st.2))
+          ⟨k, [(τ, m, c)], agg, pm, pubnonces, Rb, s⟩ :: st.2))
       | none => (none, st)
+    else (none, st)
+  | .single items, st =>
+    if h : st.1.opened < qs then
+      let r := singleNonce true nonceCoef (singleKeys C x items) (nonces ⟨st.1.opened, h⟩)
+      if hc : items ≠ [] ∧ (singleKeys C x items).length ≤ N ∧ r ≠ 0 ∧
+          ∀ i ∈ items, i.1.2 ≠ 0 ∧ i.1.sk x ≠ 0 then
+        let cs := (singleKeys C x items).map fun e =>
+          T (⟨singleKeys C x items, hc.2.1⟩, C.x (C.mulG r), e)
+        (some (C.x (C.mulG r), singleS C x items r cs),
+          ({ opened := st.1.opened + 1
+             closed := st.1.opened :: st.1.closed
+             signed := (singleKeys C x items).map
+               (fun e => (singleKeys C x items, e.1, e.2)) ++ st.1.signed },
+            ⟨st.1.opened, singleTerms items cs, (0, 0), singleKeys C x items,
+              (singleKeys C x items).map fun _ => (0, 0),
+              (C.mulG r, ncHash nonceCoef (singleNcIn (singleKeys C x items))),
+              singleS C x items r cs⟩ :: st.2))
+      else (none, ({ st.1 with opened := st.1.opened + 1, closed := st.1.opened :: st.1.closed },
+        st.2))
     else (none, st)
 
 /-! ## The reduction -/
@@ -105,18 +150,38 @@ variable (P : E) (U : ℕ → PubNonce E)
 
 /-- The discrete logarithm query point of a record. -/
 def CloseRec.point (r : CloseRec n E X M) : E :=
-  dlogPoint C (U r.k) (r.τ.pk C P) r.Rb r.c
+  dlogPoint C (U r.k) r.Rb (keyPoint C P r.keys)
 
 /-- The coefficient list of length `L` with the given entries `(index, coefficient)`. -/
 def coefVec (L : ℕ) (l : List (ℕ × ZMod n)) : List (ZMod n) :=
   (List.range L).map fun j => ((l.filter fun p => decide (p.1 = j)).map (·.2)).sum
 
-/-- The representation of the query point of a `Sign` in the challenges
+/-- `1` if the tweaked key has an even y, otherwise `-1`. -/
+def keySign (τ : Tweak n) : ZMod n := if C.hasEvenY (τ.pk C P) then 1 else -1
+
+/-- The representation of a query point in the challenges
 `P, U₀.1, U₀.2, U₁.1, …`. -/
-def dlogRep (k : ℕ) (τ : Tweak n) (Rb : E × ZMod n) (c : ZMod n) : ZMod n × List (ZMod n) :=
-  let ε : ZMod n := if C.hasEvenY (τ.pk C P) then 1 else -1
+def dlogRep (k : ℕ) (Rb : E × ZMod n) (keys : List (KeyTerm n M)) : ZMod n × List (ZMod n) :=
   let e : ZMod n := if C.hasEvenY Rb.1 then 1 else -1
-  (c * ε * τ.1, coefVec (2 * qs + 1) [(0, c * ε * τ.2), (2 * k + 1, e), (2 * k + 2, e * Rb.2)])
+  ((keys.map fun κ => κ.2.2 * keySign C P κ.1 * κ.1.1).sum,
+    coefVec (2 * qs + 1) [(0, (keys.map fun κ => κ.2.2 * keySign C P κ.1 * κ.1.2).sum),
+      (2 * k + 1, e), (2 * k + 2, e * Rb.2)])
+
+/-- Answer a signing query whose record, up to the signature scalar, is
+`rec0`: from the cache if the query point is there, otherwise with the
+discrete logarithm oracle. -/
+def simSign (rec0 : CloseRec n E X M) (signer' : SignerState X M) (st : SimState n E X M) :
+    Alg (OmdlQ n) (OmdlR E) (ZMod n × SimState n E X M) :=
+  match st.cache.find? fun r =>
+      decide (r.k = rec0.k ∧ r.point C P U = rec0.point C P U) with
+  | some r =>
+    .done (r.s, { st with signer := signer', recs := { rec0 with s := r.s } :: st.recs })
+  | none =>
+    .ask (.dlog (dlogRep C qs P rec0.k rec0.Rb rec0.keys).1
+        (dlogRep C qs P rec0.k rec0.Rb rec0.keys).2) fun (s : ZMod n) =>
+      .done (s, { signer := signer'
+                  recs := { rec0 with s := s } :: st.recs
+                  cache := { rec0 with s := s } :: st.cache })
 
 /-- The honest signer as the reduction simulates it. -/
 def simChallenger (T : SigIn N X M → ZMod n) :
@@ -132,20 +197,27 @@ def simChallenger (T : SigIn N X M → ZMod n) :
       match signPrePub C (H₀ nonceCoef N) (U k).2 (τ.pk C P) m agg pm pubnonces with
       | some Rb =>
         let c := T (⟨pm, h.2.2.2.2⟩, C.x Rb.1, (C.x (τ.pk C P), m))
-        let signer' : SignerState X M :=
-          { st.signer with closed := k :: st.signer.closed
-                           signed := (pm, C.x (τ.pk C P), m) :: st.signer.signed }
-        match st.cache.find? fun r =>
-            decide (r.k = k ∧ r.point C P U = dlogPoint C (U k) (τ.pk C P) Rb c) with
-        | some r =>
-          .done (some r.s, { st with signer := signer'
-                                     recs := ⟨k, τ, m, agg, pm, pubnonces, Rb, c, r.s⟩ :: st.recs })
-        | none =>
-          .ask (.dlog (dlogRep C qs P k τ Rb c).1 (dlogRep C qs P k τ Rb c).2) fun (s : ZMod n) =>
-            .done (some s, { signer := signer'
-                             recs := ⟨k, τ, m, agg, pm, pubnonces, Rb, c, s⟩ :: st.recs
-                             cache := ⟨k, τ, m, agg, pm, pubnonces, Rb, c, s⟩ :: st.cache })
+        simSign C qs P U ⟨k, [(τ, m, c)], agg, pm, pubnonces, Rb, 0⟩
+            { st.signer with closed := k :: st.signer.closed
+                             signed := (pm, C.x (τ.pk C P), m) :: st.signer.signed } st >>=
+          fun p => .done (some p.1, p.2)
       | none => .done (none, st)
+    else .done (none, st)
+  | .single items, st =>
+    if _ : st.signer.opened < qs then
+      let L := singleKeysPub C P items
+      let b := ncHash nonceCoef (singleNcIn L)
+      let R := (U st.signer.opened).1 + b.val • (U st.signer.opened).2
+      if hc : items ≠ [] ∧ L.length ≤ N ∧ R ≠ 0 ∧ ∀ i ∈ items, i.1.2 ≠ 0 ∧ i.1.pk C P ≠ 0 then
+        let cs := L.map fun e => T (⟨L, hc.2.1⟩, C.x R, e)
+        simSign C qs P U
+            ⟨st.signer.opened, singleTerms items cs, (0, 0), L, L.map fun _ => (0, 0), (R, b), 0⟩
+            { opened := st.signer.opened + 1
+              closed := st.signer.opened :: st.signer.closed
+              signed := L.map (fun e => (L, e.1, e.2)) ++ st.signer.signed } st >>=
+          fun p => .done (some (C.x R, p.1), p.2)
+      else .done (none, { st with signer := { st.signer with
+        opened := st.signer.opened + 1, closed := st.signer.opened :: st.signer.closed } })
     else .done (none, st)
 
 /-- Ask for `c` challenges. -/
@@ -168,7 +240,7 @@ def extractX (τ : Tweak n) (v : ZMod n) : ZMod n :=
 /-- `r₁ + b⋅r₂` from a record, given the secret key `x`. -/
 def CloseRec.w (r : CloseRec n E X M) (x : ZMod n) : ZMod n :=
   (if C.hasEvenY r.Rb.1 then (1 : ZMod n) else -1) *
-    (r.s - r.c * (if C.hasEvenY (r.τ.pk C P) then r.τ.sk x else -r.τ.sk x))
+    (r.s - (r.keys.map fun κ => κ.2.2 * (keySign C P κ.1 * κ.1.sk x)).sum)
 
 /-- The queries the reduction has left for session `k`, and the session's two
 nonces as a function of the secret key. -/

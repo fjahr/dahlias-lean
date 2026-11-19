@@ -75,8 +75,8 @@ theorem signPre_congr (O : Ops n E X) {H H' : Hashes n E X M} (h : H.nonceCoef =
 
 /-! ## The honest signer as a query algorithm -/
 
-variable (C : Curve n E X) (nonceCoef : E → E → List (X × M × E) → ZMod n) (N qs : ℕ)
-  (x : ZMod n) (nonces : Fin qs → SecNonce n)
+variable (der : Bool) (C : Curve n E X) (nonceCoef : E → E → List (X × M × E) → ZMod n)
+  (N qs : ℕ) (x : ZMod n) (nonces : Fin qs → SecNonce n)
 
 /-- The hash functions with a constant challenge hash, for the parts of the
 protocol that do not use it. -/
@@ -87,7 +87,8 @@ def treeChallenger :
     (q : AdvQ n N E X M) → SignerState X M →
       QTree (SigIn N X M) (ZMod n) (AdvR q × SignerState X M)
   | .hash z, st => .ask z fun c => .done (c, st)
-  | .openSession, st => .done (challenger C nonceCoef N qs x nonces (fun _ => 0) .openSession st)
+  | .openSession, st =>
+    .done (challengerG der C nonceCoef N qs x nonces (fun _ => 0) .openSession st)
   | .close k τ m agg pm pubnonces, st =>
     if h : k < qs ∧ k < st.opened ∧ k ∉ st.closed ∧ τ.2 ≠ 0 ∧ pm.length ≤ N then
       match signPre C.ops (H₀ nonceCoef N) (nonces ⟨k, h.1⟩) (τ.sk x) m agg pm pubnonces with
@@ -98,16 +99,30 @@ def treeChallenger :
                       signed := (pm, C.x (C.mulG (τ.sk x)), m) :: st.signed })
       | none => .done (none, st)
     else .done (none, st)
+  | .single items, st =>
+    if h : st.opened < qs then
+      let r := singleNonce der nonceCoef (singleKeys C x items) (nonces ⟨st.opened, h⟩)
+      if hc : items ≠ [] ∧ (singleKeys C x items).length ≤ N ∧ r ≠ 0 ∧
+          ∀ i ∈ items, i.1.2 ≠ 0 ∧ i.1.sk x ≠ 0 then
+        askAll ((singleKeys C x items).map fun e =>
+            ((⟨singleKeys C x items, hc.2.1⟩ : BList N X M), C.x (C.mulG r), e)) >>= fun cs =>
+          .done (some (C.x (C.mulG r), singleS C x items r cs),
+            { opened := st.opened + 1
+              closed := st.opened :: st.closed
+              signed := (singleKeys C x items).map (fun e => (singleKeys C x items, e.1, e.2)) ++
+                st.signed })
+      else .done (none, { st with opened := st.opened + 1, closed := st.opened :: st.closed })
+    else .done (none, st)
 
 theorem eval_treeChallenger (T : SigIn N X M → ZMod n) (q : AdvQ n N E X M)
     (st : SignerState X M) :
-    eval T (treeChallenger C nonceCoef N qs x nonces q st) =
-      challenger C nonceCoef N qs x nonces T q st := by
+    eval T (treeChallenger der C nonceCoef N qs x nonces q st) =
+      challengerG der C nonceCoef N qs x nonces T q st := by
   cases q with
   | hash z => rfl
   | openSession => rfl
   | close k τ m agg pm pubnonces =>
-    unfold treeChallenger challenger
+    unfold treeChallenger challengerG
     dsimp only
     split_ifs with h
     · rw [sign_eq, signPre_congr C.ops (H := hashesOf N nonceCoef T) (H' := H₀ nonceCoef N) rfl]
@@ -116,11 +131,19 @@ theorem eval_treeChallenger (T : SigIn N X M → ZMod n) (q : AdvQ n N E X M)
       | none => rfl
       | some Rb => simp [eval, hashesOf, h.2.2.2.2]; rfl
     · rfl
+  | single items =>
+    unfold treeChallenger challengerG
+    dsimp only
+    split_ifs with h hc
+    · rw [eval_bind, eval_askAll, List.map_map]
+      rfl
+    · rfl
+    · rfl
 
 theorem eval_interp (T : SigIn N X M → ZMod n) {α : Type} (t : Alg (AdvQ n N E X M) AdvR α)
     (st : SignerState X M) :
-    eval T (Alg.interp (treeChallenger C nonceCoef N qs x nonces) t st) =
-      t.run (challenger C nonceCoef N qs x nonces T) st := by
+    eval T (Alg.interp (treeChallenger der C nonceCoef N qs x nonces) t st) =
+      t.run (challengerG der C nonceCoef N qs x nonces T) st := by
   induction t generalizing st with
   | done a => rfl
   | ask q f ih =>
@@ -142,7 +165,7 @@ variable {Coins : Type} (A : Adversary n N E X M Coins) (coins : Coins)
 /-- **The game as a query algorithm**: the adversary with the honest signer,
 followed by a query of the fork point. -/
 def gameTree : QTree (SigIn N X M) (ZMod n) (Forgery n X M × SignerState X M) :=
-  Alg.interp (treeChallenger C nonceCoef N qs x nonces) (A coins (C.mulG x)) ⟨0, [], []⟩ >>=
+  Alg.interp (treeChallenger der C nonceCoef N qs x nonces) (A coins (C.mulG x)) ⟨0, [], []⟩ >>=
     fun out =>
       match forkPoint C N x out.1 out.2 with
       | some z => .ask z fun _ => .done out
@@ -156,8 +179,8 @@ def gameSel (T : SigIn N X M → ZMod n) (out : Forgery n X M × SignerState X M
   else none
 
 theorem eval_gameTree (T : SigIn N X M → ZMod n) :
-    eval T (gameTree C nonceCoef N qs x nonces A coins) =
-      (A coins (C.mulG x)).run (challenger C nonceCoef N qs x nonces T) ⟨0, [], []⟩ := by
+    eval T (gameTree der C nonceCoef N qs x nonces A coins) =
+      (A coins (C.mulG x)).run (challengerG der C nonceCoef N qs x nonces T) ⟨0, [], []⟩ := by
   unfold gameTree
   rw [eval_bind, eval_interp]
   split <;> rfl
@@ -183,16 +206,16 @@ theorem forkPoint_isSome_iff (f : Forgery n X M) (st : SignerState X M) :
 /-- **The adversary wins exactly when the game algorithm accepts.** -/
 theorem wins_iff_accepts (T : SigIn N X M → ZMod n) :
     Wins C nonceCoef N x T
-        ((A coins (C.mulG x)).run (challenger C nonceCoef N qs x nonces T) ⟨0, [], []⟩).1
-        ((A coins (C.mulG x)).run (challenger C nonceCoef N qs x nonces T) ⟨0, [], []⟩).2 ↔
-      Accepts (gameTree C nonceCoef N qs x nonces A coins) (gameSel C nonceCoef N x) T := by
+        ((A coins (C.mulG x)).run (challengerG der C nonceCoef N qs x nonces T) ⟨0, [], []⟩).1
+        ((A coins (C.mulG x)).run (challengerG der C nonceCoef N qs x nonces T) ⟨0, [], []⟩).2 ↔
+      Accepts (gameTree der C nonceCoef N qs x nonces A coins) (gameSel C nonceCoef N x) T := by
   rw [← eval_gameTree]
-  set out := eval T (gameTree C nonceCoef N qs x nonces A coins) with hout
+  set out := eval T (gameTree der C nonceCoef N qs x nonces A coins) with hout
   have hmem : ∀ z, forkPoint C N x out.1 out.2 = some z →
-      z ∈ fresh T (gameTree C nonceCoef N qs x nonces A coins) := by
+      z ∈ fresh T (gameTree der C nonceCoef N qs x nonces A coins) := by
     intro z hz
-    have hev : out = (A coins (C.mulG x)).run (challenger C nonceCoef N qs x nonces T)
-        ⟨0, [], []⟩ := eval_gameTree C nonceCoef N qs x nonces A coins T
+    have hev : out = (A coins (C.mulG x)).run (challengerG der C nonceCoef N qs x nonces T)
+        ⟨0, [], []⟩ := eval_gameTree der C nonceCoef N qs x nonces A coins T
     unfold gameTree
     rw [fresh_bind, eval_interp, ← hev, hz]
     exact mem_flog_ask T _ z _
