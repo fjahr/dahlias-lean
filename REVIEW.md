@@ -48,4 +48,4 @@ taproot-lean supplies the curve interface (`Taproot.Curve`) and secp256k1. A ful
 
 - `lake build` compiles every proof and fails if the axioms of a main result change (`Dahlias/Summary.lean`).
 - `scripts/check.sh` searches the sources for `sorry`, new axioms, unsafe code and stray `native_decide`.
-- `lake env leanchecker Dahlias` replays every project module in the kernel, without the elaborator.
+- `scripts/replay.sh` replays every project module in the kernel, without the elaborator, one process per module.

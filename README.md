@@ -48,7 +48,7 @@ The curve, SHA-256 and BIP 340 come from [taproot-lean](https://github.com/dni/t
 lake exe cache get
 lake build
 scripts/check.sh
-lake env leanchecker Dahlias
+scripts/replay.sh
 ```
 
 The toolchain is Lean v4.34.1 with Mathlib v4.34.1. The first build compiles the dependencies that have no cache and takes a while.
