@@ -30,6 +30,7 @@ import Dahlias.Secp256k1
 import Dahlias.BytesSecurity
 import Dahlias.Encoding
 import Dahlias.Examples
+import Dahlias.Tightness
 import Dahlias.Attacks
 import Dahlias.Ros
 import Dahlias.Summary

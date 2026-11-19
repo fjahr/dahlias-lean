@@ -46,6 +46,8 @@ The model was compared with BIP 459 at bitcoin/bips commit [`f3d1668`](https://g
 
 **What does the bound say?** With `q = qh + qs + 1`, `unforgeable` states `adv * (adv / q - 1 / n) ≤ omdl + coll` for adversaries that ask for no single-party signatures (`NoSingle`). This is the bound of the paper's Theorem 2 up to the count of queries. `unforgeable_sqrt` holds for all adversaries: `adv ≤ sqrt (q * (omdl + coll)) + q / n + qs / (n - 1)`. The square root is the loss of the forking lemma, and `qs / (n - 1)` pays for the single-party signatures.
 
+**Is the bound tight?** Its additive term is. `grinder` makes `q` random oracle queries and no signing queries, and it computes no discrete logarithm. For each of `q` messages it asks for the challenge of the list `[(pk, m)]` with `R = pk`, and if a challenge is `-1` the signature `(pk, 0)` is valid. It forges with probability at least `1 - ((n - 1) / n)^q`, which is at least `q / (n + q)` (`grinder_advantage`, `grinder_advantage_ge`). `unforgeable_sqrt` bounds this forger by `sqrt (…) + (q + 1) / n`. No theorem here says that the square root or the term `qs / (n - 1)` is needed.
+
 **What connects the theorems to BIP 459's bytes?** `Dahlias/Bytes.lean` defines the algorithms on bytes as parsing followed by the model's algorithms, and the 60 test vectors and the differential tests run them. `Dahlias/Encoding.lean` proves what the model takes for granted. The hash inputs are injective encodings of the structured inputs (`sigInput_injective`, `nonceCoefInput_injective`). `cpoint` accepts exactly the encodings `cbytes(P)`, so comparing nonces as bytes is comparing points (`cpoint_eq_some_iff`, `matchIdxs_bytes`). `sign_bytes` and `verify_bytes` say that `Sign` and `Verify` on bytes are `Sign` and `Verify` of the instance that `bytes_unforgeable` and `bytes_unforgeable_256` are about. A nonce that does not parse becomes the point `0` there, and the adversary of the game may send `0` as well.
 
 ## BIP 459's claims
@@ -720,6 +722,59 @@ theorem unforgeable_sqrt_lazy (hN : N < n) (qh : ℕ) (hA : ∀ coins P, HashBou
       Real.sqrt ((qh + qs + 1 : ℕ) *
         (omdlAdvantage C (2 * qs + 1) (reductionLazy C nonceCoef N qs A (2 * (qh + qs) + 1)) +
           collisionAdvantage C nonceCoef N qs A)) + (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ)
+```
+
+### The additive term of the bound
+
+`Dahlias/Tightness.lean`. A forger that makes `q` random oracle queries, no signing queries and computes no discrete logarithm.
+
+```lean
+/-- The grinder's random oracle query for the message `m`: the challenge of
+the list `[(pk, m)]` with `R = pk`. -/
+def grindIn (hN : 1 ≤ N) (pk : X) (m : M) : SigIn N X M :=
+  (⟨[(pk, m)], by simpa using hN⟩, pk, (pk, m))
+```
+
+```lean
+/-- The grinder's forgery for the message `m`: the signature `(pk, 0)` for the
+list `[(pk, m)]` and the untweaked key. -/
+def grindOut (pk : X) (m : M) : Forgery n X M := ⟨[(pk, m)], (0, 1), (pk, 0)⟩
+```
+
+```lean
+/-- Ask for the challenges of the messages one by one and stop at the first
+that is `-1`. -/
+def grindAlg (hN : 1 ≤ N) (pk : X) : List M → Alg (AdvQ n N E X M) AdvR (Forgery n X M)
+  | [] => .done ⟨[], (0, 1), (pk, 0)⟩
+  | m :: ms => .ask (.hash (grindIn N hN pk m)) fun (c : ZMod n) =>
+      if c = -1 then .done (grindOut pk m) else grindAlg hN pk ms
+```
+
+```lean
+/-- A forger that needs no signature and no discrete logarithm. -/
+def grinder (ms : List M) : Adversary n N E X M Unit := fun _ P =>
+  if hN : 1 ≤ N then grindAlg N hN (C.x P) ms else .done ⟨[], (0, 1), (C.x P, 0)⟩
+```
+
+```lean
+/-- The grinder makes at most one random oracle query for every message. -/
+theorem grinder_hashBound (ms : List M) (u : Unit) (P : E) :
+    HashBound (grinder C N ms u P) ms.length
+```
+
+```lean
+/-- **The additive term is needed.** With `q` different messages the grinder
+makes at most `q` random oracle queries and no signing queries, and it forges
+with probability at least `1 - ((n - 1) / n)^q`. -/
+theorem grinder_advantage (hN : 1 ≤ N) (ms : List M) (hms : ms.Nodup) :
+    1 - (((n : ℝ) - 1) / n) ^ ms.length ≤ forgeAdvantage C nonceCoef N qs (grinder C N ms)
+```
+
+```lean
+/-- **The additive term is needed**, in closed form: the grinder forges with
+probability at least `q / (n + q)`. -/
+theorem grinder_advantage_ge (hN : 1 ≤ N) (ms : List M) (hms : ms.Nodup) :
+    (ms.length : ℝ) / (n + ms.length) ≤ forgeAdvantage C nonceCoef N qs (grinder C N ms)
 ```
 
 ### The challenge hash reduced modulo `n`

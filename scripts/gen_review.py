@@ -59,6 +59,12 @@ SECTIONS = [
       ("Dahlias/Unforgeability.lean",
        ["collisionAdvantage", "NoSingle", "unforgeable", "unforgeable_sqrt"]),
       ("Dahlias/LazyReduction.lean", ["reductionLazy", "unforgeable_sqrt_lazy"])]),
+    ("The additive term of the bound",
+     "`Dahlias/Tightness.lean`. A forger that makes `q` random oracle queries, no signing "
+     "queries and computes no discrete logarithm.",
+     [("Dahlias/Tightness.lean",
+       ["grindIn", "grindOut", "grindAlg", "grinder", "grinder_hashBound", "grinder_advantage",
+        "grinder_advantage_ge"])]),
     ("The challenge hash reduced modulo `n`",
      "`Dahlias/Hashed.lean` and `Dahlias/BytesSecurity.lean`. The random oracle answers with "
      "hash outputs, which the adversary sees and the signer and the verifier reduce.",

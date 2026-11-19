@@ -30,6 +30,7 @@ import Dahlias.Secp256k1
 import Dahlias.BytesSecurity
 import Dahlias.Encoding
 import Dahlias.Examples
+import Dahlias.Tightness
 import Dahlias.Attacks
 import Dahlias.Ros
 
@@ -233,6 +234,20 @@ info: 'Dahlias.Security.secp256k1_unforgeable' depends on axioms: [propext,
 /-- info: 'Dahlias.Security.guesser_advantage_pos' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Dahlias.Security.guesser_advantage_pos
+
+/-! ## The additive term of the bound is needed -/
+
+/-- info: 'Dahlias.Security.grinder_hashBound' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.grinder_hashBound
+
+/-- info: 'Dahlias.Security.grinder_advantage' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.grinder_advantage
+
+/-- info: 'Dahlias.Security.grinder_advantage_ge' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.grinder_advantage_ge
 
 /-! ## Lazy sampling of the random oracle -/
 
