@@ -84,8 +84,8 @@ What BIP 459 says about correctness and security, and the theorem for it.
 
 ## Machine checks
 
-- `lake build` compiles every proof and fails if the axioms of a main result change (`Dahlias/Summary.lean`).
-- `scripts/check.sh` searches the sources for `sorry`, new axioms, unsafe code and stray `native_decide`. It also checks that every code block under [The statements](#the-statements) is in the sources word for word.
+- `lake build` compiles every proof and fails if the axioms of a main result change (`Dahlias/Summary.lean`). The build sets `autoImplicit = false`, so a misspelled variable in a statement is an error and not a new implicit variable.
+- `scripts/check.sh` searches the sources for `sorry`, new axioms, unsafe code and compiled evaluation outside the test vector checks. It checks that every code block under [The statements](#the-statements) is in the sources word for word, and that `Dahlias/Summary.lean` checks the axioms of every theorem printed there and of every result in the README's table.
 - `scripts/replay.sh` replays every project module in the kernel with `leanchecker`, without the elaborator, one process per module.
 - CI runs all three, regenerates the test vector data from bitcoin/bips, and runs 300 cases of `scripts/fuzz.py` against the Python reference.
 
