@@ -336,6 +336,57 @@ info: 'Dahlias.Security.sign_val' depends on axioms: [propext,
 #guard_msgs in
 #print axioms Dahlias.Security.sign_val
 
+/-! ## The byte encodings -/
+
+/-- info: 'Dahlias.Bytes.sigInput_injective' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Bytes.sigInput_injective
+
+/--
+info: 'Dahlias.Bytes.nonceCoefInput_injective' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Dahlias.Bytes.nonceCoefInput_injective
+
+/--
+info: 'Dahlias.Bytes.cpoint_eq_some_iff' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Dahlias.Bytes.cpoint_eq_some_iff
+
+/--
+info: 'Dahlias.Bytes.matchIdxs_bytes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Dahlias.Bytes.matchIdxs_bytes
+
+/--
+info: 'Dahlias.Security.sign_bytes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Dahlias.Security.sign_bytes
+
+/--
+info: 'Dahlias.Security.verify_bytes' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ Taproot.Secp256k1.n_smul_G._native.native_decide.ax_1_1]
+-/
+#guard_msgs in
+#print axioms Dahlias.Security.verify_bytes
+
 /-! ## Attacks on misuse and on a weakened `Sign` -/
 
 /-- info: 'Dahlias.Security.evenScalar_of_nonce_reuse' depends on axioms: [propext, Classical.choice, Quot.sound] -/

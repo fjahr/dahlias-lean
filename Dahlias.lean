@@ -27,6 +27,7 @@ import Dahlias.PrimeOrder
 import Dahlias.Tweaks
 import Dahlias.Secp256k1
 import Dahlias.BytesSecurity
+import Dahlias.Encoding
 import Dahlias.Examples
 import Dahlias.Attacks
 import Dahlias.Ros
