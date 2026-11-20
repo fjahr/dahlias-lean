@@ -47,3 +47,40 @@ jobs:
             echo "error: the build passes with a new axiom"; exit 1
           fi
           grep -q 'Dahlias.Security.audit_backdoor\|audit_backdoor' inventory.log
+
+  # The C module against BIP 459's Python reference and against values computed
+  # on discrete logarithms. Needs no Lean. The revision is the head of
+  # bitcoin-core/secp256k1#1754 that the README's results are for.
+  secp256k1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: bitcoin/bips
+          ref: f3d1668891fcdad99770245110bc6a22c87bce97
+          path: bips
+          sparse-checkout: bip-0459
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: bitcoin-core/secp256k1
+          ref: 5f0e692687181510d244ef8b561a144338f2cda1
+          path: secp256k1
+      - name: Build the library with the fullagg module and the exhaustive test
+        run: |
+          git -C secp256k1 apply ../patches/secp256k1-fullagg-exhaustive-tests.patch
+          cmake -S secp256k1 -B secp256k1/build -DBUILD_SHARED_LIBS=OFF -DSECP256K1_EXPERIMENTAL=ON \
+            -DSECP256K1_ENABLE_MODULE_FULLAGG=ON -DSECP256K1_BUILD_BENCHMARK=OFF \
+            -DSECP256K1_BUILD_CTIME_TESTS=OFF -DSECP256K1_BUILD_EXAMPLES=OFF \
+            -DSECP256K1_BUILD_EXHAUSTIVE_TESTS=ON
+          cmake --build secp256k1/build -j4
+          cc -O2 -Isecp256k1/include scripts/fuzz_secp256k1.c secp256k1/build/lib/libsecp256k1.a -o fuzz_secp256k1
+      - name: Unit tests of the module
+        run: secp256k1/build/bin/tests --target=fullagg
+      - name: Differential test against the Python reference
+        run: >
+          python3 scripts/fuzz.py bips/bip-0459 --no-lean --secp256k1 ./fuzz_secp256k1
+          --cases 3000 --seed "${{ github.run_id }}"
+      - name: Exhaustive tests on the group of order 13
+        run: secp256k1/build/bin/exhaustive_tests 1

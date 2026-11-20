@@ -93,6 +93,7 @@ What BIP 459 says about correctness and security, and the theorem for it.
 - `scripts/check_selftest.sh` changes a copy of the sources in eight ways, such as an axiom in the root module or in the summary, and checks that `scripts/check.sh` fails each time.
 - `scripts/replay.sh` replays in the kernel with `leanchecker`, without the elaborator, every project module and every taproot-lean module that the project imports, one process per module.
 - CI runs all of these. It also regenerates the summary and the test vector data, runs 300 cases of `scripts/fuzz.py` against the Python reference with a new seed for every run, and checks that the build fails when an unused axiom is added to a module.
+- A second CI job builds libsecp256k1 with the `fullagg` module at the commit the README names. It runs the module's unit tests, 3,000 cases of `scripts/fuzz.py` against the Python reference with a new seed, and the exhaustive tests on the group of order 13.
 
 ### Mutants of the model
 

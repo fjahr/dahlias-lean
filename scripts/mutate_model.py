@@ -7,7 +7,7 @@ Usage: python3 scripts/mutate_model.py [--only NAME,NAME,...]
 Copies the project into a temporary directory, with the build outputs, and for
 each named mutant of a definition runs `lake build Dahlias` there. Prints the
 declarations that no longer compile. A mutant that builds is a survivor: the
-theorems do not depend on what it changes.
+theorems do not depend on what it changes. The script fails if there is one.
 
 The copy uses `cp -c` (copy-on-write on APFS) when it can, so it needs little
 disk space on macOS. Elsewhere it copies the dependencies' build outputs too.
@@ -129,6 +129,7 @@ def main():
                 where = failures(tree, r.stdout + r.stderr) or ["an unknown place"]
                 print(f"{name}: {description}\n    fails in {', '.join(where)}", flush=True)
         print(f"survivors: {', '.join(survivors) or 'none'}")
+        sys.exit(1 if survivors else 0)
 
 
 if __name__ == "__main__":

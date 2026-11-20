@@ -95,7 +95,7 @@ The C API cannot express fields of the wrong length. The driver skips those case
 
 With `--secp256k1` the script also tests the state that only the C API keeps. It signs twice with the same `secnonce` object and expects the second call to fail. It signs with a `secnonce` object made for another public key, which must fail. And it signs with lists that differ from the ones the session was initialized with, which must fail unless both sets of lists give the same nonce coefficient input.
 
-Runs so far found no mismatch. The latest were 6,600 cases with seed 31 against libsecp256k1, of which the script compared 5,901, and 3,000 cases with seed 20261120 against the Lean model.
+Runs so far found no mismatch. The latest were 6,600 cases with seed 31 against libsecp256k1, of which the script compared 5,901, and 3,000 cases with seed 20261120 against the Lean model. CI runs 300 cases against the Lean model and 3,000 against libsecp256k1 on every push, with a new seed each time.
 
 The three implementations treat a few malformed inputs differently. The script counts these cases separately and lists them at the end of a run:
 
