@@ -81,7 +81,7 @@ python3 scripts/gen_review.py
 python3 scripts/fuzz.py path/to/bips/bip-0459 --cases 5000 --seed 1
 ```
 
-For libsecp256k1, build the library with the module and compile the driver:
+For libsecp256k1, build the library with the module and compile the driver. The results in this file are for commit [`5f0e6926`](https://github.com/bitcoin-core/secp256k1/pull/1754/commits/5f0e692687181510d244ef8b561a144338f2cda1), the head of [bitcoin-core/secp256k1#1754](https://github.com/bitcoin-core/secp256k1/pull/1754) on 2026-11-20:
 
 ```sh
 cmake -S path/to/secp256k1 -B build -DBUILD_SHARED_LIBS=OFF \
@@ -95,7 +95,7 @@ The C API cannot express fields of the wrong length. The driver skips those case
 
 With `--secp256k1` the script also tests the state that only the C API keeps. It signs twice with the same `secnonce` object and expects the second call to fail. It signs with a `secnonce` object made for another public key, which must fail. And it signs with lists that differ from the ones the session was initialized with, which must fail unless both sets of lists give the same nonce coefficient input.
 
-Runs so far found no mismatch. The latest was 6,600 cases with seed 31, of which the script compared 5,400 with the Lean model and 5,901 with libsecp256k1.
+Runs so far found no mismatch. The latest were 6,600 cases with seed 31 against libsecp256k1, of which the script compared 5,901, and 3,000 cases with seed 20261120 against the Lean model.
 
 The three implementations treat a few malformed inputs differently. The script counts these cases separately and lists them at the end of a run:
 
@@ -106,7 +106,7 @@ The three implementations treat a few malformed inputs differently. The script c
 
 ## Exhaustive test for the C module
 
-`patches/secp256k1-fullagg-exhaustive-tests.patch` adds a test of the `fullagg` module to libsecp256k1's exhaustive tests, which run the library on a group of order 13 or 199. It applies to the fork's branch `2026-11-half-full-agg` at commit `1f06bdf1`.
+`patches/secp256k1-fullagg-exhaustive-tests.patch` adds a test of the `fullagg` module to libsecp256k1's exhaustive tests, which run the library on a group of order 13 or 199. It applies to the commit named above.
 
 The test runs signing sessions of one, two and three signers and compares every step with the value computed on discrete logarithms:
 
@@ -144,7 +144,7 @@ python3 scripts/mutate_secp256k1.py path/to/secp256k1 path/to/bips/bip-0459
 
 The script works on an export of the checkout's `HEAD` in a temporary directory and takes about 25 minutes.
 
-At commit `1f06bdf1` with 3,300 cases (seed 7) the three sets together notice 56 of the 57 mutants. The survivor is `verify` reducing an `r ≥ p` modulo `p` where it should reject. A test for it needs a valid signature whose `R` has an x-coordinate below `2^256 - p`.
+At the commit named above, with 3,300 cases (seed 7), the three sets together notice 56 of the 57 mutants. The survivor is `verify` reducing an `r ≥ p` modulo `p` where it should reject. A test for it needs a valid signature whose `R` has an x-coordinate below `2^256 - p`.
 
 Only the exhaustive tests notice three mutants: `session_init` or `partial_sig_verify` accepting an `R` at infinity, and `verify` reducing an `s ≥ n` modulo `n`. On secp256k1 a test would need one particular hash output, or a valid signature with `s < 2^256 - n`.
 
