@@ -56,14 +56,17 @@ SECTIONS = [
        ["chalLogsStd", "omdlChallengerStd", "omdlExperimentStd", "omdlAdvantageStd",
         "omdlAdvantage_le_std"])]),
     ("Unforgeability",
-     "`Dahlias/Unforgeability.lean`, `Dahlias/Proofs/Reduction.lean` and "
-     "`Dahlias/LazyReduction.lean`. Of the reduction and the collision finder only the types "
-     "are printed.",
+     "`Dahlias/Unforgeability.lean`, `Dahlias/Proofs/Reduction.lean`, "
+     "`Dahlias/LazyReduction.lean` and `Dahlias/LazyCollider.lean`. Of the reduction and the "
+     "collision finder only the types are printed.",
      [("Dahlias/Proofs/Reduction.lean", ["ncHash", "IsCollision", "reduction!", "collider!"]),
       ("Dahlias/Unforgeability.lean",
        ["collisionAdvantage", "NoSingle", "unforgeable", "unforgeable_sqrt"]),
       ("Dahlias/OmdlStd.lean", ["unforgeable_sqrt_std"]),
-      ("Dahlias/LazyReduction.lean", ["reductionLazy", "unforgeable_sqrt_lazy"])]),
+      ("Dahlias/LazyReduction.lean", ["reductionLazy", "unforgeable_sqrt_lazy"]),
+      ("Dahlias/LazyCollider.lean",
+       ["LazyColliderSample", "colliderLazy", "collisionAdvantageLazy",
+        "unforgeable_sqrt_lazy_both"])]),
     ("The additive term of the bound",
      "`Dahlias/Tightness.lean`. A forger that makes `q` random oracle queries, no signing "
      "queries and computes no discrete logarithm.",

@@ -24,6 +24,7 @@ import Dahlias.Hashed
 import Dahlias.NonceProb
 import Dahlias.Second
 import Dahlias.LazyReduction
+import Dahlias.LazyCollider
 import Dahlias.NonceGen
 import Dahlias.NonceGenSk
 import Dahlias.Binding
