@@ -35,4 +35,5 @@ import Dahlias.Examples
 import Dahlias.Tightness
 import Dahlias.Attacks
 import Dahlias.Ros
+import Dahlias.Audit
 import Dahlias.Summary

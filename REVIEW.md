@@ -1,10 +1,10 @@
 # Reviewing dahlias-lean
 
-Lean checks the proofs. A reviewer checks that the statements say what they should. Everything under `Dahlias/Proofs/` can stay unread, because a wrong proof does not compile. A wrong definition does.
+Lean checks the proofs. A reviewer checks that the statements say what they should. Proofs can stay unread, because a wrong proof does not compile. A wrong definition does, and some definitions are under `Dahlias/Proofs/`: the reduction, the collision finder and what they call are part of what the main theorem says. [Every definition behind the results](#every-definition-behind-the-results) lists all definitions that a result depends on. The list is computed from the compiled project, and the build fails if it changes.
 
 ## What to read
 
-About 1,000 lines of definitions and statements decide whether the results mean anything. [The statements](#the-statements) at the end of this file prints them on one page.
+The definitions and statements below decide whether the results mean anything. [The statements](#the-statements) at the end of this file prints the main ones on one page and lists the rest.
 
 1. `Dahlias/Basic.lean`, all of it. Compare the algorithms with BIP 459. The header lists the modelling choices.
 2. `Dahlias/Security.lean`, all of it: the unforgeability game, the AOMDL game, and the places where the game differs from the paper's.
@@ -13,7 +13,7 @@ About 1,000 lines of definitions and statements decide whether the results mean 
 5. `Dahlias/Hashed.lean`, the game in which the random oracle returns hash outputs, and the statement of `unforgeable_sqrt_fin`.
 6. `Dahlias/NonceGen.lean` and `Dahlias/NonceGenSk.lean`, the games with nonces derived as in `NonceGen`, and the statements.
 7. `Dahlias/Binding.lean`, the header, `bindExperiment` and the statement of `strongly_binding`.
-8. `Dahlias/Proofs/Reduction.lean`, the types of `reduction` and `collider`, and `reductionLazy` in `Dahlias/LazyReduction.lean`.
+8. `Dahlias/Proofs/Reduction.lean`, all definitions: `reduction`, `collider` and what they call. The theorems measure these two algorithms, so their bodies are part of the statement. Then `reductionLazy` in `Dahlias/LazyReduction.lean`.
 9. `Dahlias/Bytes.lean` and the statements of `Dahlias/Encoding.lean`, for BIP 459's bytes.
 
 taproot-lean supplies the curve interface (`Taproot.Curve`), secp256k1 and SHA-256. A full review reads those definitions too. taproot-lean checks the order of secp256k1's generator with compiled code. `Dahlias/OrderG.lean` proves it from a certificate that the kernel checks, and the theorems here use that proof (`secp256k1F`), so only the test vector checks depend on compiled code.
@@ -30,7 +30,7 @@ The model was compared with BIP 459 at bitcoin/bips commit [`f3d1668`](https://g
 
 **Is the adversary restricted?** An `Adversary` is any function from coins of a finite type and the public key point to an oracle algorithm. It chooses all other public keys, all messages, all nonces of the other signers, the aggregate nonce and the tweaks, and it may leave sessions open and interleave them. It is not algebraic. The hypothesis `HashBound` bounds its random oracle queries, counting a single-party signing query once for every entry of its list. The game bounds the number of sessions and single-party signatures.
 
-**Does the reduction cheat?** `reduction` has the type `OmdlAdversary`: it is an oracle algorithm for the AOMDL game and gets nothing else. It wins only if it makes fewer discrete logarithm queries than it received challenges, so the query count is part of the statement. `collider` is a function of a sample. It holds the secret key and runs the game by itself, which a collision finder may do.
+**Does the reduction cheat?** `reduction` has the type `OmdlAdversary`: it is an oracle algorithm for the AOMDL game and gets nothing else. It wins only if it makes fewer discrete logarithm queries than it received challenges, so the query count is part of the statement. The type does not rule out an algorithm that finds the logarithms by search without asking, and there is no cost model, so the body has to be read. `reduction` asks for its challenges and calls `reductionBody`. That runs the forger with `simChallenger` answering its queries, which asks at most one discrete logarithm query for a signing query (`simSign`). It takes the fork point from the forger's output, runs the forger a second time with the table changed at that point, asks at most two more queries for every session (`solveSessions`) and computes the secret key from the two forgeries with one division (`extractX`). Nothing in these definitions goes through scalars or points in search of one. `collider` is a function of a sample. It holds the secret key, runs the game twice (`gameRecs`) and goes through the pairs of session records of the two runs for a collision. It is marked noncomputable only because it decides classically whether two hash inputs are equal.
 
 **What is random?** The secret key and the nonces are uniform nonzero scalars. In `unforgeable` and `unforgeable_sqrt` the challenge hash is a uniform table of scalars, on inputs with lists of at most `N` entries. `forgeAdvantage_eq_lazy` proves that the game has the same advantage when the oracle answers every new query with the next of `qh + qs + N` uniform scalars. The coins of `reduction` contain a whole table. `reductionLazy` takes `2·(qh + qs) + 1` scalars instead and wins the AOMDL game with the same probability (`omdlAdvantage_reduction_eq_lazy`), and `unforgeable_sqrt_lazy` is the theorem with that reduction. The framework has no cost model, so there is no statement about running time.
 
@@ -86,10 +86,12 @@ What BIP 459 says about correctness and security, and the theorem for it.
 
 ## Machine checks
 
-- `lake build` compiles every proof and fails if the axioms of a main result change (`Dahlias/Summary.lean`). The build sets `autoImplicit = false`, so a misspelled variable in a statement is an error and not a new implicit variable.
-- `scripts/check.sh` searches the sources for `sorry`, new axioms, unsafe code and compiled evaluation outside the test vector checks. It checks that every code block under [The statements](#the-statements) is in the sources word for word, and that `Dahlias/Summary.lean` checks the axioms of every theorem printed there and of every result in the README's table.
-- `scripts/replay.sh` replays every project module in the kernel with `leanchecker`, without the elaborator, one process per module.
-- CI runs all three, regenerates the test vector data from bitcoin/bips, and runs 300 cases of `scripts/fuzz.py` against the Python reference.
+- `lake build` compiles every proof. It fails if the axioms of a main result change (`Dahlias/Summary.lean`). The build sets `autoImplicit = false`, so a misspelled variable in a statement is an error and not a new implicit variable.
+- `Dahlias/Summary.lean` also guards two inventories of the whole project, computed by the commands of `Dahlias/Audit.lean`. `#project_axioms` lists the axioms that the modules declare and that their declarations depend on, so an axiom that no main result uses fails the build too. `#surface` lists the definitions behind the results, which is the last section of this file.
+- `scripts/check.sh` reads every Lean file of the repository for `sorry`, axioms, unsafe code and compiled evaluation outside the test vector checks. It checks that the root module has only imports and the generated summary only guarded commands. It checks that every code block under [The statements](#the-statements) is in the sources word for word, and that `Dahlias/Summary.lean` checks the axioms of every theorem printed there and of every result in the README's table.
+- `scripts/check_selftest.sh` changes a copy of the sources in eight ways, such as an axiom in the root module or in the summary, and checks that `scripts/check.sh` fails each time.
+- `scripts/replay.sh` replays in the kernel with `leanchecker`, without the elaborator, every project module and every taproot-lean module that the project imports, one process per module.
+- CI runs all of these. It also regenerates the summary and the test vector data, runs 300 cases of `scripts/fuzz.py` against the Python reference with a new seed for every run, and checks that the build fails when an unused axiom is added to a module.
 
 ### Mutants of the model
 
@@ -1098,6 +1100,31 @@ theorem nonceGenSk_advantage (g : (ZMod n)ˣ → W) (hg : Injective g) (hρ : �
 `Dahlias/Binding.lean`.
 
 ```lean
+/-- A deterministic algorithm with adaptive queries to a function `D → S`. -/
+abbrev QTree (D S α : Type) := Alg D (fun _ => S) α
+```
+
+```lean
+/-- The output on the function `T`. -/
+def eval (T : D → S) : QTree D S α → α
+  | .done a => a
+  | .ask d f => eval T (f (T d))
+```
+
+```lean
+/-- The fresh queries on the function `T`, appended to the points `l` that
+count as queried already. -/
+def flog (T : D → S) : List D → QTree D S α → List D
+  | l, .done _ => l
+  | l, .ask d f => flog T (if d ∈ l then l else l ++ [d]) (f (T d))
+```
+
+```lean
+/-- The points queried on the function `T`, in order, each once. -/
+def fresh (T : D → S) (t : QTree D S α) : List D := flog T [] t
+```
+
+```lean
 /-- A binding adversary with coins in `Coins`: it queries the challenge hash
 and outputs two lists and a signature. -/
 abbrev BindAdversary (n N : ℕ) (X M Coins : Type) :=
@@ -1278,6 +1305,20 @@ def verify (pks msgs : List Bytes) (sig : Bytes) : Bool :=
 ```
 
 ```lean
+/-- A list of 32-byte pairs as a list of byte array pairs. -/
+def vals (L : List (B32 × B32)) : List (Bytes × Bytes) := L.map fun e => (e.1.1, e.2.1)
+```
+
+```lean
+/-- Hash functions on 32-byte arrays that agree with hash functions on byte
+arrays. -/
+def Agree (H : Hashes n Point B32 B32) (Hb : Hashes n Point Bytes Bytes) : Prop :=
+  (∀ R₁ R₂ items, H.nonceCoef R₁ R₂ items =
+      Hb.nonceCoef R₁ R₂ (items.map fun t => (t.1.1, t.2.1.1, t.2.2))) ∧
+    ∀ L r e, H.sig L r e = Hb.sig (vals L) r.1 (e.1.1, e.2.1)
+```
+
+```lean
 theorem cpoint_eq_some_iff {b : Bytes} {P : Point} :
     cpoint specOps b = some P ↔ P ≠ 0 ∧ b = cbytes P
 ```
@@ -1359,5 +1400,45 @@ theorem sign_bytes {H : Hashes n Point B32 B32} (hH : Agree H hashes) (r₁ r₂
       (sign secp256k1X.ops H (r₁, r₂) d m (parseNonce specOps aggnonce) pm
         (pubnonces.map (parseNonce specOps))).map serScalar
 ```
+
+### Every definition behind the results
+
+The definitions of the project that the statements of the results in `Dahlias/Summary.lean` depend on, directly or through other definitions. `#surface` in `Dahlias/Audit.lean` computes the list from the compiled project, `Dahlias/Summary.lean` guards it, and the build fails if it changes. Proofs are not followed, since what a proof uses does not change what a statement says. Whoever agrees with these definitions knows what the results say. The ones that are not printed above have to be read in the sources.
+
+- `Dahlias/Alg.lean`: `Alg`, `Alg.bind`, `Alg.instMonad`, `Alg.interp`, `Alg.run`
+- `Dahlias/Attacks.lean`: `Security.challengerWith`, `Security.msgSwap`, `Security.sgn`, `Security.signNoMsgCheck`
+- `Dahlias/Basic.lean`: `Hashes`, `Ops`, `PubNonce`, `SecNonce`, `coefItems`, `getSessionValues`, `keySum`, `matchIdxs`, `nonceAgg`, `nonceGen`, `partialSigVerify`, `sigAgg`, `sign`, `tweakPK`, `tweakSK`, `verify`, `Ops.evenScalar`, `Ops.signOf`, `Taproot.Curve.ops`
+- `Dahlias/Binding.lean`: `Security.BindAdversary`, `Security.bindExperiment`
+- `Dahlias/Bytes.lean`: `Bytes.cbytes`, `Bytes.cpoint`, `Bytes.hashes`, `Bytes.is32`, `Bytes.nonceAgg`, `Bytes.nonceGen`, `Bytes.parseNonce`, `Bytes.partialSigVerify`, `Bytes.scalar`, `Bytes.scalarWrap`, `Bytes.serNonce`, `Bytes.serScalar`, `Bytes.sigAgg`, `Bytes.sign`, `Bytes.specOps`, `Bytes.tweakPKOfSK`, `Bytes.tweakSK`, `Bytes.verify`, `Bytes.wellFormed`, `Bytes.xbytes`
+- `Dahlias/BytesCorrectness.lean`: `Bytes.pkOf`, `Bytes.pubnonceOf`, `Bytes.secnonceOf`, `Bytes.skOf`
+- `Dahlias/BytesCurve.lean`: `Bytes.secp256k1B`
+- `Dahlias/BytesSecurity.lean`: `Security.Agree`, `Security.B32`, `Security.instDecidableEqB32`, `Security.instFintypeB32`, `Security.nonceCoef32`, `Security.secp256k1X`, `Security.vals`
+- `Dahlias/Correctness.lean`: `Signer`, `Signer.pkm`, `Signer.pubnonce`
+- `Dahlias/Encoding.lean`: `Bytes.Items32`, `Bytes.Pairs32`, `Bytes.nonceCoefInput`, `Bytes.sigInput`
+- `Dahlias/Examples.lean`: `Security.guesser`
+- `Dahlias/Fork.lean`: `QTree.Accepts`, `QTree.Forks`
+- `Dahlias/Hashed.lean`: `Security.AdvRH`, `Security.AdversaryH`, `Security.ForgeSampleH`, `Security.challengerH`, `Security.forgeAdvantageH`, `Security.forgeExperimentH`, `Security.liftFin`, `Security.liftHash`, `Security.redFin`
+- `Dahlias/Lazy.lean`: `QTree.evalLazy`, `QTree.memo`, `QTree.stream`
+- `Dahlias/LazyGame.lean`: `Security.LazySample`, `Security.lazyExperiment`, `Security.verifyWith`, `Security.winTail`, `Security.winTree`
+- `Dahlias/LazyReduction.lean`: `Security.RM`, `Security.rdFork`, `Security.rdTable`, `Security.readAll`, `Security.reductionBodyM`, `Security.reductionLazy`, `Security.reductionM`, `Security.simChallengerM`
+- `Dahlias/LocalFork.lean`: `LocalFork.accCount`, `LocalFork.forkCount`
+- `Dahlias/NonceGen.lean`: `Security.NAdversary`, `Security.Rest`, `Security.challengerE`, `Security.nonceGenAdvantage`, `Security.nonceGenExperiment`, `Security.noncePt`, `Security.nvOf`, `Security.winE`, `Security.withTable`
+- `Dahlias/NonceGenSk.lean`: `Security.SkAdversary`, `Security.nonceGenSkAdvantage`, `Security.nonceGenSkExperiment`, `Security.winSk`, `Security.withAux`
+- `Dahlias/OrderG.lean`: `secp256k1F`
+- `Dahlias/Prob.lean`: `prob`
+- `Dahlias/QueryRun.lean`: `QTree`, `QTree.askAll`, `QTree.eval`, `QTree.flog`, `QTree.fresh`, `QTree.queryAll`
+- `Dahlias/Ros.lean`: `Security.effNonce`, `Security.rosBit`, `Security.rosCoef`, `Security.rosConst`, `Security.signTupleCheck`
+- `Dahlias/Second.lean`: `Security.NBound`, `Security.SumR`, `Security.answerG`, `Security.answerLazy`, `Security.liftQ`
+- `Dahlias/Secp256k1.lean`: `Security.instFintypeBList`, `Security.instFintypeSigIn`
+- `Dahlias/Security.lean`: `Security.AdvQ`, `Security.AdvR`, `Security.Adversary`, `Security.BList`, `Security.ForgeSample`, `Security.Forgery`, `Security.HashBound`, `Security.OmdlAdversary`, `Security.OmdlQ`, `Security.OmdlR`, `Security.SigIn`, `Security.SignerState`, `Security.Tweak`, `Security.Wins`, `Security.chalLogs`, `Security.challenger`, `Security.challengerG`, `Security.forgeAdvantage`, `Security.forgeAdvantageG`, `Security.forgeExperimentG`, `Security.hashesOf`, `Security.omdlAdvantage`, `Security.omdlChallenger`, `Security.omdlExperiment`, `Security.singleKeys`, `Security.singleNcIn`, `Security.singleNonce`, `Security.singleS`, `Security.Tweak.sk`
+- `Dahlias/Single.lean`: `signSingle`, `singleList`
+- `Dahlias/Tightness.lean`: `Security.grindAlg`, `Security.grindIn`, `Security.grindOut`, `Security.grinder`
+- `Dahlias/Tweaks.lean`: `Security.bipTweakSign`
+- `Dahlias/Unforgeability.lean`: `Security.NoSingle`, `Security.collisionAdvantage`, `Security.instFintypeProdForallSigInZMod`
+- `Dahlias/VectorData.lean`: `Vectors.nonceAggRows`, `Vectors.nonceGenRows`, `Vectors.partialSigVerifyRows`, `Vectors.signErrorRows`, `Vectors.signRows`, `Vectors.tweakRows`, `Vectors.verifyRows`
+- `Dahlias/Vectors.lean`: `Vectors.checkNonceAgg`, `Vectors.checkNonceGen`, `Vectors.checkPartialSigVerify`, `Vectors.checkSign`, `Vectors.checkSignError`, `Vectors.checkTweak`, `Vectors.checkVerify`, `Vectors.hexList`, `Vectors.optHex`
+- `Dahlias/Proofs/ForkGame.lean`: `Security.instFintypeProdForgeSampleZMod`, `Security.noncesOf`
+- `Dahlias/Proofs/Game.lean`: `Security.H₀`, `Security.forkPoint`, `Security.signPost`, `Security.signPre`, `Security.treeChallenger`
+- `Dahlias/Proofs/Reduction.lean`: `Security.CloseRec`, `Security.IsCollision`, `Security.KeyTerm`, `Security.SimState`, `Security.coefVec`, `Security.collider`, `Security.dlogPoint`, `Security.dlogRep`, `Security.evenLift`, `Security.extractX`, `Security.forkPointPub`, `Security.gameRecs`, `Security.getChals`, `Security.keyPoint`, `Security.keySign`, `Security.logChallenger`, `Security.ncHash`, `Security.reduction`, `Security.reductionBody`, `Security.signPrePub`, `Security.simChallenger`, `Security.simSign`, `Security.singleKeysPub`, `Security.singleTerms`, `Security.solveSession`, `Security.solveSessions`, `Security.CloseRec.ncIn`, `Security.CloseRec.point`, `Security.CloseRec.w`, `Security.Tweak.pk`
 
 <!-- statements:end -->

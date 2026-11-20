@@ -3,8 +3,9 @@
 
 Usage: python3 scripts/gen_summary.py > Dahlias/Summary.lean  (after `lake build`)
 
-Run it when a main result is added. The generated file then fails the build
-if the axioms of a result change.
+Run it when a main result is added or a definition behind a result changes.
+The generated file then fails the build if the axioms of a result, the axioms
+of the project or the list of definitions behind the results change.
 """
 
 import os
@@ -90,17 +91,49 @@ set_option linter.style.longLine false
 '''
 
 
-def main():
-    imports = [l for l in (ROOT / "Dahlias.lean").read_text().splitlines()
-               if l.strip() and l.strip() != "import Dahlias.Summary"]
-    names = [n for _, l in SECTIONS for n in l]
+INVENTORY = '''
+/-! ## The axioms of the whole project
+
+The checks above are about the main results. This one is about every
+declaration of the project: the axioms that its modules declare, and the
+axioms that its declarations depend on. The only axioms of the project are
+the ones of the test vector checks. -/
+'''
+
+SURFACE = '''
+/-! ## The definitions behind the results
+
+The definitions of the project that the statements of the results above depend
+on, directly or through other definitions, by module. Proofs are not followed.
+`REVIEW.md` lists the same definitions. -/
+'''
+
+
+def lean(imports, body):
+    """The output of Lean on a file with the given imports and commands."""
     with tempfile.NamedTemporaryFile("w", suffix=".lean", delete=False) as f:
-        f.write("\n".join(imports) + "\n" + "".join(f"#print axioms {n}\n" for n in names))
+        f.write("\n".join(imports) + "\n" + body)
         path = f.name
     env = dict(os.environ, PATH=os.path.expanduser("~/.elan/bin") + os.pathsep + os.environ["PATH"])
     out = subprocess.run(["lake", "env", "lean", path], capture_output=True, text=True,
                          cwd=ROOT, env=env).stdout
     os.unlink(path)
+    return out
+
+
+def guard(imports, command, start):
+    """A guarded command with the message it prints, which must begin with `start`."""
+    msg = lean(imports, command + "\n").strip()
+    if not msg.startswith(start):
+        sys.exit(f"unexpected output of {command.split()[0]}:\n{msg}")
+    return f"\n/--\ninfo: {msg}\n-/\n#guard_msgs in\n{command}\n"
+
+
+def main():
+    imports = [l for l in (ROOT / "Dahlias.lean").read_text().splitlines()
+               if l.strip() and l.strip() != "import Dahlias.Summary"]
+    names = [n for _, l in SECTIONS for n in l]
+    out = lean(imports, "".join(f"#print axioms {n}\n" for n in names))
     msgs, cur = [], None
     for line in out.split("\n"):
         if line.startswith("'"):
@@ -124,6 +157,10 @@ def main():
                 doc += f"\n/--\ninfo: {m}\n-/\n#guard_msgs in\n#print axioms {name}\n"
             else:
                 doc += f"\n/-- info: {m} -/\n#guard_msgs in\n#print axioms {name}\n"
+    doc += INVENTORY
+    doc += guard(imports, "#project_axioms", "axioms declared in the project")
+    doc += SURFACE
+    doc += guard(imports, "#surface " + " ".join(names), "Dahlias.")
     sys.stdout.write(doc)
 
 

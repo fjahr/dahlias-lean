@@ -86,7 +86,8 @@ SECTIONS = [
         "nonceGenSk_advantage"])]),
     ("Binding",
      "`Dahlias/Binding.lean`.",
-     [("Dahlias/Binding.lean", ["BindAdversary", "bindExperiment", "strongly_binding"])]),
+     [("Dahlias/QueryRun.lean", ["QTree", "eval", "flog", "fresh"]),
+      ("Dahlias/Binding.lean", ["BindAdversary", "bindExperiment", "strongly_binding"])]),
     ("Finding a disruptive signer",
      "`Dahlias/Correctness.lean` and `Dahlias/Blame.lean`. The statements hold for every choice "
      "of the hash functions.",
@@ -101,6 +102,7 @@ SECTIONS = [
      [("Dahlias/Bytes.lean",
        ["specOps", "cbytes", "cpoint", "parseNonce", "scalar", "scalarWrap", "hashes",
         "wellFormed", "sign", "verify"]),
+      ("Dahlias/BytesSecurity.lean", ["vals", "Agree"]),
       ("Dahlias/Encoding.lean",
        ["cpoint_eq_some_iff", "matchIdxs_bytes", "sigInput", "nonceCoefInput", "Pairs32",
         "sigInput_injective", "Items32", "nonceCoefInput_injective", "verify_bytes",
@@ -137,6 +139,30 @@ def block(path, name):
     return text
 
 
+SURFACE = (
+    "The definitions of the project that the statements of the results in `Dahlias/Summary.lean` "
+    "depend on, directly or through other definitions. `#surface` in `Dahlias/Audit.lean` computes "
+    "the list from the compiled project, `Dahlias/Summary.lean` guards it, and the build fails if "
+    "it changes. Proofs are not followed, since what a proof uses does not change what a statement "
+    "says. Whoever agrees with these definitions knows what the results say. The ones that are not "
+    "printed above have to be read in the sources.")
+
+
+def surface():
+    """The definitions behind the results, from the guarded output in Dahlias/Summary.lean."""
+    summary = (ROOT / "Dahlias/Summary.lean").read_text()
+    end = summary.find("\n-/\n#guard_msgs in\n#surface ")
+    start = summary.rfind("/--\ninfo: ", 0, end)
+    if end < 0 or start < 0:
+        sys.exit("Dahlias/Summary.lean has no guarded #surface")
+    out = []
+    for line in summary[start + len("/--\ninfo: "):end].split("\n"):
+        module, names = line.split(": ", 1)
+        shown = ", ".join(f"`{n.removeprefix('Dahlias.')}`" for n in names.split(", "))
+        out.append(f"- `{module.replace('.', '/')}.lean`: {shown}")
+    return out
+
+
 def render():
     out = [BEGIN, ""]
     for heading, text, groups in SECTIONS:
@@ -144,6 +170,7 @@ def render():
         for path, names in groups:
             for name in names:
                 out += ["```lean", block(path, name), "```", ""]
+    out += ["### Every definition behind the results", "", SURFACE, ""] + surface() + [""]
     out.append(END)
     return "\n".join(out)
 

@@ -21,14 +21,29 @@ jobs:
           sparse-checkout: bip-0459
       - name: Source checks
         run: scripts/check.sh
+      - name: The source checks fail when they should
+        run: scripts/check_selftest.sh
       - name: Regenerate the test vector data
         run: python3 scripts/gen_vectors.py bips/bip-0459/vectors | diff - Dahlias/VectorData.lean
       # Installs the toolchain from lean-toolchain, fetches the Mathlib cache and
-      # runs `lake build`. The build fails if the axioms of a main result change
+      # runs `lake build`. The build fails if the axioms of a main result, the
+      # axioms of the project or the definitions behind the results change
       # (Dahlias/Summary.lean).
       - uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee # v1.7.1
-      # Also type-checks scripts/Fuzz.lean.
+      - name: Regenerate the summary
+        run: python3 scripts/gen_summary.py | diff - Dahlias/Summary.lean
+      # Also type-checks scripts/Fuzz.lean. Every run has a new seed, which the
+      # script prints.
       - name: Differential test against the Python reference
-        run: python3 scripts/fuzz.py bips/bip-0459 --cases 300 --seed 1
-      - name: Replay every project module in the kernel
+        run: python3 scripts/fuzz.py bips/bip-0459 --cases 300 --seed "${{ github.run_id }}"
+      - name: Replay every module in the kernel
         run: scripts/replay.sh
+      # Last, because it changes a source file: an axiom that no result uses
+      # must fail the build through the inventory in Dahlias/Summary.lean.
+      - name: The axiom inventory fails when it should
+        run: |
+          printf '\naxiom audit_backdoor : False\n' >> Dahlias/Tightness.lean
+          if lake build Dahlias.Summary > inventory.log 2>&1; then
+            echo "error: the build passes with a new axiom"; exit 1
+          fi
+          grep -q 'Dahlias.Security.audit_backdoor\|audit_backdoor' inventory.log
