@@ -65,6 +65,7 @@ SECTIONS = [
       "Dahlias.Security.verify_val", "Dahlias.Security.sign_val"]),
     ("The byte encodings",
      ["Dahlias.Bytes.sigInput_injective", "Dahlias.Bytes.nonceCoefInput_injective",
+      "Dahlias.Bytes.cbytes_injective", "Dahlias.Security.collision_bytes",
       "Dahlias.Bytes.cpoint_eq_some_iff", "Dahlias.Bytes.matchIdxs_bytes",
       "Dahlias.Security.sign_bytes", "Dahlias.Security.verify_bytes"]),
     ("Attacks on misuse and on a weakened `Sign`",

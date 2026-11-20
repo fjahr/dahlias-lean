@@ -36,7 +36,7 @@ The model was compared with BIP 459 at bitcoin/bips commit [`f3d1668`](https://g
 
 **How is the challenge hash reduced modulo `n`?** BIP 459 computes `c = int(hash(…)) mod n` from a 256-bit hash. In the game of `Dahlias/Hashed.lean` the oracle returns a uniform element of a type `H` of hash outputs. The adversary sees the outputs, and `Sign` and `Verify` turn them into scalars with `red`. `forgeAdvantageH_le` reduces this game to the one with scalar answers. The game reads at most `qh + qs + N` oracle values, and each is outside a fixed set of `n` outputs, one for every scalar, with probability `(|H| - n) / |H|`. For `H = {0, …, 2^256 - 1}` and `red h = h mod n` that is at most `2^-127` (`hash_gap`), and `bytes_unforgeable_256` is the theorem for secp256k1.
 
-**What is the nonce coefficient hash?** A fixed function into the scalars, `nonceCoef`. The theorem holds for every such function and measures how often `collider` outputs a collision of it. This is the usual way to state collision resistance for an unkeyed hash function. BIP 459's `int(hash_BIP0459/noncecoef(…)) mod n` is such a function (`nonceCoef32`). A collision of it is a pair of inputs whose SHA-256 values are equal or differ by `n`.
+**What is the nonce coefficient hash?** A fixed function into the scalars, `nonceCoef`. The theorem holds for every such function and measures how often `collider` outputs a collision of it. This is the usual way to state collision resistance for an unkeyed hash function. BIP 459's `int(hash_BIP0459/noncecoef(…)) mod n` is such a function (`nonceCoef32`). `collision_bytes` proves that a collision of it is a pair of different byte strings whose tagged SHA-256 values are congruent modulo `n`, so equal or `n` apart. That includes the inputs with the point at infinity, which the game hashes for the nonce of a single-party signature: `cbytes` maps that point to `02 ‖ 0^32`, and no curve point has the x-coordinate `0` (`sq_ne_seven`).
 
 **What does the single-party query add?** BIP 459 leaves open how a party that holds all keys of a list signs without running the protocol with itself, and says that the method sketched on the mailing list needs a security analysis. `signSingle` is that method: one nonce `r`, `R = r⋅G`, `s = ±r + Σ cᵢ⋅dᵢ`. The game offers it to the adversary next to the sessions, and `unforgeable_sqrt` covers it at the cost of `qs / (n - 1)`. The reduction cannot answer two such queries of one slot with the same nonce in its two runs, so it works with a variant in which the nonce is `r₁ + b⋅r₂` for a coefficient `b` derived from the list (`challengerG true`). `forgeAdvantage_le_derived` shows that the adversary cannot tell the variant from the game.
 
@@ -1363,20 +1363,41 @@ theorem sigInput_injective {pm pm' : List (Bytes × Bytes)} {r r' : Bytes}
 
 ```lean
 /-- The items of a nonce coefficient input have 32-byte public keys and
-messages and nonces other than the point at infinity. -/
+messages. -/
 def Items32 (items : List (Bytes × Bytes × Point)) : Prop :=
-  ∀ it ∈ items, it.1.length = 32 ∧ it.2.1.length = 32 ∧ it.2.2 ≠ 0
+  ∀ it ∈ items, it.1.length = 32 ∧ it.2.1.length = 32
 ```
 
 ```lean
 /-- **The input of `hash_BIP0459/noncecoef` determines `(R₁, R₂)` and the
-`(pkᵢ, mᵢ, R₂,ᵢ)`**, for 32-byte public keys and messages and points other
-than the point at infinity. `GetSessionValues` hashes only such inputs. -/
+`(pkᵢ, mᵢ, R₂,ᵢ)`**, for 32-byte public keys and messages. The points may be
+the point at infinity: `GetSessionValues` hashes no such input, but the game
+does for the nonce of a single-party signature. -/
 theorem nonceCoefInput_injective {R₁ R₂ R₁' R₂' : Point}
-    {items items' : List (Bytes × Bytes × Point)} (h1 : R₁ ≠ 0) (h2 : R₂ ≠ 0) (h1' : R₁' ≠ 0)
-    (h2' : R₂' ≠ 0) (h : Items32 items) (h' : Items32 items')
+    {items items' : List (Bytes × Bytes × Point)} (h : Items32 items) (h' : Items32 items')
     (heq : nonceCoefInput R₁ R₂ items = nonceCoefInput R₁' R₂' items') :
     R₁ = R₁' ∧ R₂ = R₂' ∧ items = items'
+```
+
+```lean
+/-- The bytes that `hash_BIP0459/noncecoef` hashes for an input of
+`nonceCoef32`. -/
+def nonceCoefBytes (z : Point × Point × List (B32 × B32 × Point)) : Bytes :=
+  nonceCoefInput z.1 z.2.1 (z.2.2.map fun t => (t.1.1, t.2.1.1, t.2.2))
+```
+
+```lean
+/-- **A collision of the nonce coefficient hash is a collision of SHA-256
+modulo `n`.** The two inputs are hashed as two different byte strings, and
+the tagged hashes of the two strings, read as numbers, are congruent modulo
+`n`. So `collisionAdvantage` for `nonceCoef32` is the probability that
+`collider` finds such a pair of strings. -/
+theorem collision_bytes
+    {p : (Point × Point × List (B32 × B32 × Point)) × (Point × Point × List (B32 × B32 × Point))}
+    (h : IsCollision nonceCoef32 p) :
+    nonceCoefBytes p.1 ≠ nonceCoefBytes p.2 ∧
+      toNatBE (taggedHash "BIP0459/noncecoef" (nonceCoefBytes p.1)) % n =
+        toNatBE (taggedHash "BIP0459/noncecoef" (nonceCoefBytes p.2)) % n
 ```
 
 ```lean
@@ -1414,7 +1435,7 @@ The definitions of the project that the statements of the results in `Dahlias/Su
 - `Dahlias/BytesCurve.lean`: `Bytes.secp256k1B`
 - `Dahlias/BytesSecurity.lean`: `Security.Agree`, `Security.B32`, `Security.instDecidableEqB32`, `Security.instFintypeB32`, `Security.nonceCoef32`, `Security.secp256k1X`, `Security.vals`
 - `Dahlias/Correctness.lean`: `Signer`, `Signer.pkm`, `Signer.pubnonce`
-- `Dahlias/Encoding.lean`: `Bytes.Items32`, `Bytes.Pairs32`, `Bytes.nonceCoefInput`, `Bytes.sigInput`
+- `Dahlias/Encoding.lean`: `Bytes.Items32`, `Bytes.Pairs32`, `Bytes.nonceCoefInput`, `Bytes.sigInput`, `Security.nonceCoefBytes`
 - `Dahlias/Examples.lean`: `Security.guesser`
 - `Dahlias/Fork.lean`: `QTree.Accepts`, `QTree.Forks`
 - `Dahlias/Hashed.lean`: `Security.AdvRH`, `Security.AdversaryH`, `Security.ForgeSampleH`, `Security.challengerH`, `Security.forgeAdvantageH`, `Security.forgeExperimentH`, `Security.liftFin`, `Security.liftHash`, `Security.redFin`

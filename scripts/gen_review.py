@@ -105,7 +105,8 @@ SECTIONS = [
       ("Dahlias/BytesSecurity.lean", ["vals", "Agree"]),
       ("Dahlias/Encoding.lean",
        ["cpoint_eq_some_iff", "matchIdxs_bytes", "sigInput", "nonceCoefInput", "Pairs32",
-        "sigInput_injective", "Items32", "nonceCoefInput_injective", "verify_bytes",
+        "sigInput_injective", "Items32", "nonceCoefInput_injective", "nonceCoefBytes",
+        "collision_bytes", "verify_bytes",
         "sign_bytes"])]),
 ]
 

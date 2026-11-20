@@ -11,6 +11,12 @@ and scalars. This file connects those choices to BIP 459's bytes.
   `hash_BIP0459/sig` and `hash_BIP0459/noncecoef` hash determine the
   structured input, because every field has a fixed length. So a hash of the
   bytes is a function of the structured input and the other way round.
+* `collision_bytes`: a collision of the nonce coefficient hash that the
+  security theorems are stated for is a pair of different byte strings whose
+  tagged SHA-256 hashes are congruent modulo `n`. This includes the inputs
+  with the point at infinity, which the game uses for single-party signatures:
+  `cbytes` maps it to `02 ‖ 0^32`, and no curve point has the x-coordinate `0`
+  (`sq_ne_seven`, `cbytes_injective`).
 * `cpoint_eq_some_iff`: `cpoint` accepts exactly the encodings `cbytes(P)` of
   the points `P` other than the point at infinity, so no point has two
   encodings.
@@ -58,9 +64,61 @@ theorem cpoint_eq_some_iff {b : Bytes} {P : Point} :
   ⟨cpoint_eq_some, fun ⟨h0, hb⟩ => hb ▸ cpoint_cbytes h0⟩
 
 /-- Points other than infinity have different encodings. -/
-theorem cbytes_injective {P P' : Point} (h : P ≠ 0) (h' : P' ≠ 0) (heq : cbytes P = cbytes P') :
-    P = P' :=
+theorem cbytes_injective_of_ne {P P' : Point} (h : P ≠ 0) (h' : P' ≠ 0)
+    (heq : cbytes P = cbytes P') : P = P' :=
   Option.some.inj (by rw [← cpoint_cbytes h, ← cpoint_cbytes h', heq])
+
+/-- **`7` is not a square modulo `p`**, by Euler's criterion: `7^((p-1)/2)` is
+not `1`, which the kernel computes. -/
+theorem sq_ne_seven (y : F) : y ^ 2 ≠ 7 := by
+  intro h
+  have hy : y ≠ 0 := by
+    rintro rfl
+    exact seven_ne_zero (by simpa using h.symm)
+  have h1 : (7 : F) ^ ((p - 1) / 2) = 1 := by
+    rw [← h, ← pow_mul, show 2 * ((p - 1) / 2) = p - 1 by decide +kernel]
+    exact ZMod.pow_card_sub_one_eq_one hy
+  have h7 : (7 : F) = ((7 : ℕ) : F) := by norm_num
+  rw [h7, Pratt.natCast_pow_eq_powMod _ _ _ (by decide +kernel)] at h1
+  revert h1
+  decide +kernel
+
+/-- No point of secp256k1 has the x-coordinate `0`. -/
+theorem xCoord_ne_zero {P : Point} (hP : P ≠ 0) : xCoord P ≠ 0 := by
+  cases P with
+  | zero => exact absurd rfl hP
+  | some x y h =>
+    intro hx
+    have hx' : x = 0 := hx
+    have hc := (nonsingular_iff x y).mp h
+    rw [hx'] at hc
+    exact sq_ne_seven y (by simpa using hc)
+
+/-- The encoding of the point at infinity, `02 ‖ 0^32`, is the encoding of no
+other point. -/
+theorem cbytes_ne_zero {P : Point} (hP : P ≠ 0) : cbytes P ≠ cbytes 0 := by
+  intro h
+  unfold cbytes at h
+  have hx : xbytes P = xbytes 0 := (List.cons.inj h).2
+  have hv := congrArg toNatBE hx
+  rw [xbytes, xbytes, toNatBE_bytes32 ((ZMod.val_lt _).trans p_lt),
+    toNatBE_bytes32 ((ZMod.val_lt _).trans p_lt)] at hv
+  have h0 : xCoord (0 : Point) = 0 := rfl
+  rw [h0, ZMod.val_zero] at hv
+  exact xCoord_ne_zero hP ((ZMod.val_eq_zero _).mp hv)
+
+/-- **No two points have the same encoding**, the point at infinity
+included. -/
+theorem cbytes_injective {P P' : Point} (heq : cbytes P = cbytes P') : P = P' := by
+  by_cases h : P = 0
+  · by_cases h' : P' = 0
+    · rw [h, h']
+    · rw [h] at heq
+      exact absurd heq.symm (cbytes_ne_zero h')
+  · by_cases h' : P' = 0
+    · rw [h'] at heq
+      exact absurd heq (cbytes_ne_zero h)
+    · exact cbytes_injective_of_ne h h' heq
 
 /-- The second half of a 66-byte nonce parses to `R` exactly if it is
 `cbytes(R)`. -/
@@ -173,9 +231,9 @@ theorem sigInput_injective {pm pm' : List (Bytes × Bytes)} {r r' : Bytes}
   exact ⟨h1, h2, Prod.ext h3 h4⟩
 
 /-- The items of a nonce coefficient input have 32-byte public keys and
-messages and nonces other than the point at infinity. -/
+messages. -/
 def Items32 (items : List (Bytes × Bytes × Point)) : Prop :=
-  ∀ it ∈ items, it.1.length = 32 ∧ it.2.1.length = 32 ∧ it.2.2 ≠ 0
+  ∀ it ∈ items, it.1.length = 32 ∧ it.2.1.length = 32
 
 theorem flatMap_items_inj {items items' : List (Bytes × Bytes × Point)} (h : Items32 items)
     (h' : Items32 items')
@@ -199,27 +257,27 @@ theorem flatMap_items_inj {items items' : List (Bytes × Bytes × Point)} (h : I
       have hb := h' b List.mem_cons_self
       rw [List.flatMap_cons, List.flatMap_cons] at heq
       obtain ⟨hchunk, heq⟩ := List.append_inj heq (by
-        simp only [List.length_append, length_cbytes, ha.1, ha.2.1, hb.1, hb.2.1])
+        simp only [List.length_append, length_cbytes, ha.1, ha.2, hb.1, hb.2])
       obtain ⟨h12, h3⟩ := List.append_inj hchunk (by
-        simp only [List.length_append, ha.1, ha.2.1, hb.1, hb.2.1])
+        simp only [List.length_append, ha.1, ha.2, hb.1, hb.2])
       obtain ⟨h1, h2⟩ := List.append_inj h12 (by rw [ha.1, hb.1])
-      have h3' := cbytes_injective ha.2.2 hb.2.2 h3
+      have h3' := cbytes_injective h3
       rw [ih (fun e he => h e (List.mem_cons_of_mem _ he))
         (fun e he => h' e (List.mem_cons_of_mem _ he)) heq]
       exact congrArg (· :: l') (Prod.ext h1 (Prod.ext h2 h3'))
 
 /-- **The input of `hash_BIP0459/noncecoef` determines `(R₁, R₂)` and the
-`(pkᵢ, mᵢ, R₂,ᵢ)`**, for 32-byte public keys and messages and points other
-than the point at infinity. `GetSessionValues` hashes only such inputs. -/
+`(pkᵢ, mᵢ, R₂,ᵢ)`**, for 32-byte public keys and messages. The points may be
+the point at infinity: `GetSessionValues` hashes no such input, but the game
+does for the nonce of a single-party signature. -/
 theorem nonceCoefInput_injective {R₁ R₂ R₁' R₂' : Point}
-    {items items' : List (Bytes × Bytes × Point)} (h1 : R₁ ≠ 0) (h2 : R₂ ≠ 0) (h1' : R₁' ≠ 0)
-    (h2' : R₂' ≠ 0) (h : Items32 items) (h' : Items32 items')
+    {items items' : List (Bytes × Bytes × Point)} (h : Items32 items) (h' : Items32 items')
     (heq : nonceCoefInput R₁ R₂ items = nonceCoefInput R₁' R₂' items') :
     R₁ = R₁' ∧ R₂ = R₂' ∧ items = items' := by
   unfold nonceCoefInput at heq
   obtain ⟨hpre, heq⟩ := List.append_inj heq (by simp only [List.length_append, length_cbytes])
   obtain ⟨e1, e2⟩ := List.append_inj hpre (by rw [length_cbytes, length_cbytes])
-  exact ⟨cbytes_injective h1 h1' e1, cbytes_injective h2 h2' e2, flatMap_items_inj h h' heq⟩
+  exact ⟨cbytes_injective e1, cbytes_injective e2, flatMap_items_inj h h' heq⟩
 
 end Dahlias.Bytes
 
@@ -228,6 +286,44 @@ namespace Dahlias.Security
 open Taproot Taproot.Secp256k1 Taproot.BIP340Vectors Dahlias.Bytes
 
 /-! ## `Sign` and `Verify` on bytes are those of the security instance -/
+
+/-! ## A collision of the nonce coefficient hash, in bytes -/
+
+/-- The bytes that `hash_BIP0459/noncecoef` hashes for an input of
+`nonceCoef32`. -/
+def nonceCoefBytes (z : Point × Point × List (B32 × B32 × Point)) : Bytes :=
+  nonceCoefInput z.1 z.2.1 (z.2.2.map fun t => (t.1.1, t.2.1.1, t.2.2))
+
+theorem nonceCoefBytes_injective : Function.Injective nonceCoefBytes := by
+  rintro ⟨R₁, R₂, items⟩ ⟨R₁', R₂', items'⟩ h
+  have h32 : ∀ l : List (B32 × B32 × Point),
+      Items32 (l.map fun t => (t.1.1, t.2.1.1, t.2.2)) := by
+    intro l it hit
+    obtain ⟨t, -, rfl⟩ := List.mem_map.mp hit
+    exact ⟨t.1.2, t.2.1.2⟩
+  obtain ⟨rfl, rfl, hi⟩ := nonceCoefInput_injective (h32 items) (h32 items') h
+  have hinj : Function.Injective fun t : B32 × B32 × Point => (t.1.1, t.2.1.1, t.2.2) := by
+    rintro ⟨a, b, c⟩ ⟨a', b', c'⟩ h
+    simp only [Prod.mk.injEq] at h
+    exact Prod.ext (Subtype.ext h.1) (Prod.ext (Subtype.ext h.2.1) h.2.2)
+  rw [List.map_injective_iff.mpr hinj hi]
+
+/-- **A collision of the nonce coefficient hash is a collision of SHA-256
+modulo `n`.** The two inputs are hashed as two different byte strings, and
+the tagged hashes of the two strings, read as numbers, are congruent modulo
+`n`. So `collisionAdvantage` for `nonceCoef32` is the probability that
+`collider` finds such a pair of strings. -/
+theorem collision_bytes
+    {p : (Point × Point × List (B32 × B32 × Point)) × (Point × Point × List (B32 × B32 × Point))}
+    (h : IsCollision nonceCoef32 p) :
+    nonceCoefBytes p.1 ≠ nonceCoefBytes p.2 ∧
+      toNatBE (taggedHash "BIP0459/noncecoef" (nonceCoefBytes p.1)) % n =
+        toNatBE (taggedHash "BIP0459/noncecoef" (nonceCoefBytes p.2)) % n := by
+  obtain ⟨hne, heq⟩ := h
+  refine ⟨fun hb => hne (nonceCoefBytes_injective hb), ?_⟩
+  have heq' : (toNatBE (taggedHash "BIP0459/noncecoef" (nonceCoefBytes p.1)) : ZMod n) =
+      (toNatBE (taggedHash "BIP0459/noncecoef" (nonceCoefBytes p.2)) : ZMod n) := heq
+  exact (ZMod.natCast_eq_natCast_iff' _ _ _).mp heq'
 
 theorem signPre_eq_none {E X M : Type} [AddCommGroup E] [DecidableEq E] [DecidableEq X]
     [DecidableEq M] (O : Ops n E X) (H : Hashes n E X M) (secnonce : SecNonce n) (sk : ZMod n)
