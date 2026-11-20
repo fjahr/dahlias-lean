@@ -58,6 +58,28 @@ KNOWN = {
 }
 
 
+# What a known difference looks like: the pairs (python, other) it may produce, with "ok" for
+# any result that is not a failure. Any other mismatch of such a case counts as a mismatch.
+KNOWN_OUTCOMES = {
+    "lazy-pk": {"lean": {("FAIL", "ok")}},
+    "lazy-r1": {"lean": {("FAIL", "ok")}},
+    "empty-nonceagg": {"lean": {("RAISED IndexError", "FAIL")},
+                       "secp256k1": {("RAISED IndexError", "FAIL")}},
+    "noncegen-sk": {"lean": {("FAIL", "ok")}, "secp256k1": {("ok", "FAIL")}},
+    "secnonce-range": {"secp256k1": {("FAIL", "ok")}},
+}
+
+
+def outcome(e, g):
+    """A pair of results with every success shortened to "ok"."""
+    return (e if len(e) < 20 else "ok", g if len(g) < 20 else "ok")
+
+
+def is_known(label, target, e, g):
+    """Whether the mismatch of `e` (python) and `g` (target) is the known difference `label`."""
+    return label is not None and outcome(e, g) in KNOWN_OUTCOMES[label].get(target, ())
+
+
 def b32(x):
     return x.to_bytes(32, "big")
 
@@ -520,6 +542,7 @@ def main():
     import reference as ref
     from secp256k1lab import secp256k1 as lab
 
+    print(f"seed {args.seed}")
     gen = Gen(random.Random(args.seed), ref, lab)
     cases, known = make_cases(gen, args.cases, bool(args.secp256k1))
     expected = [gen.run_ref(c) for c in cases]
@@ -553,15 +576,14 @@ def main():
                 skipped += 1
             elif e == g:
                 continue
-            elif k is not None:
+            elif is_known(k, name, e, g):
                 diverged.setdefault(k, []).append((e, g))
             else:
                 bad += 1
                 if bad <= 10:
                     print(f"MISMATCH\n  case:   {l}\n  python: {e}\n  {name}: {g}")
         for k, d in sorted(diverged.items()):
-            outcomes = sorted({(e if len(e) < 20 else "ok", g if len(g) < 20 else "ok")
-                               for e, g in d})
+            outcomes = sorted({outcome(e, g) for e, g in d})
             print(f"{name}: known difference '{k}' in {len(d)} cases, "
                   f"(python, {name}) = {outcomes}\n  {KNOWN[k]}")
         print(f"{name}: {len(cases) - skipped} cases compared, {skipped} skipped, "

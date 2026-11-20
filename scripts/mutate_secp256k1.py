@@ -357,7 +357,7 @@ def main():
         if failed or ex or base is None:
             sys.exit(f"the unmutated module fails: {failed}, exhaustive tests fail: {ex}")
         bad = [l for l, e, g, k in zip(lines, expected, base, known)
-               if g != "SKIP" and e != g and k is None]
+               if g != "SKIP" and e != g and not fuzz.is_known(k, "secp256k1", e, g)]
         if bad:
             sys.exit(f"the unmutated module differs from the reference on {len(bad)} cases, "
                      f"the first one:\n{bad[0]}")
