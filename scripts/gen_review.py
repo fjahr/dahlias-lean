@@ -92,6 +92,17 @@ SECTIONS = [
       ("Dahlias/NonceGenSk.lean",
        ["SkAdversary", "withAux", "winSk", "nonceGenSkExperiment", "nonceGenSkAdvantage",
         "nonceGenSk_advantage"])]),
+    ("`NonceGen`, 256-bit hashes and 32-byte values together",
+     "`Dahlias/NonceGenHashed.lean` and `Dahlias/BytesSecurity.lean`. One game has the nonces of "
+     "`NonceGen` and a challenge hash whose outputs the adversary sees and the signer and the "
+     "verifier reduce.",
+     [("Dahlias/NonceGenHashed.lean",
+       ["mapAns", "sumAns", "NAdversaryH", "SkAdversaryH", "challengerEH", "RestH",
+        "nonceGenExperimentH", "nonceGenSkExperimentH", "nonceGenAdvantageH",
+        "nonceGenSkAdvantageH", "hashAns", "liftHashN", "liftHashSk",
+        "nonceGen_unforgeable_fin", "nonceGenSk_unforgeable_fin"]),
+      ("Dahlias/BytesSecurity.lean",
+       ["card_B32", "bytes_nonceGenSk_unforgeable_256", "bytes_nonceGen_unforgeable_256"])]),
     ("Binding",
      "`Dahlias/Binding.lean`, and `Dahlias/BindingHashed.lean` for the oracle with hash outputs.",
      [("Dahlias/QueryRun.lean", ["QTree", "eval", "flog", "fresh"]),

@@ -3,6 +3,7 @@ import Dahlias.BytesCorrectness
 import Dahlias.Proofs.Game
 import Dahlias.Hashed
 import Dahlias.BindingHashed
+import Dahlias.NonceGenHashed
 
 /-!
 # The security theorems for 32-byte keys and messages
@@ -21,6 +22,10 @@ In `bytes_unforgeable` the random oracle answers with a uniform scalar. In
 `bytes_unforgeable_256` it answers with a uniform 256-bit value that `Sign`
 and `Verify` reduce modulo `n`, as BIP 459 does with SHA-256. The difference
 is at most `2^-127` for every oracle value the game reads (`hash_gap`).
+
+`bytes_nonceGenSk_unforgeable_256` and `bytes_nonceGen_unforgeable_256` have
+all of it at once: the 32-byte instance, the 256-bit challenge hash and the
+nonces of `NonceGen`, with and without its `sk` argument.
 -/
 
 set_option linter.unusedSectionVars false
@@ -116,6 +121,82 @@ theorem bytes_strongly_binding_256 {Coins : Type} [Fintype Coins] (N : ℕ)
       ((qh + 2 * N : ℕ) : ℝ) ^ 2 / n +
         (qh + 2 * N : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ)) :=
   strongly_binding_fin secp256k1X nonceCoef32 N n_lt.le A secp256k1_primeOrder hN qh hA
+
+/-! ## `NonceGen`, 256-bit hashes and 32-byte values together -/
+
+instance : Nonempty B32 := ⟨⟨List.replicate 32 0, List.length_replicate⟩⟩
+
+/-- There are `2²⁵⁶` 32-byte arrays. -/
+theorem card_B32 : Fintype.card B32 = 2 ^ 256 := by
+  have h : Fintype.card B32 = Fintype.card (List.Vector UInt8 32) :=
+    Fintype.card_congr (Equiv.refl _)
+  rw [h, card_vector,
+    Fintype.card_congr (⟨UInt8.toFin, UInt8.ofFin, UInt8.ofFin_toFin, UInt8.toFin_ofFin⟩ :
+      UInt8 ≃ Fin 256), Fintype.card_fin]
+  norm_num
+
+set_option synthInstance.maxSize 4000 in
+/-- **BIP 459 with 32-byte keys and messages, `NonceGen` and 256-bit hashes is
+unforgeable under AOMDL.** The nonces come from `NonceGen` with its `sk`
+argument, for 32-byte values `rand'` and `rand` and any family of bijections
+`mask`, such as `r ↦ bytes(x) xor r`. `hash_BIP0459/sig`, `hash_BIP0459/nonce`
+and `hash_BIP0459/aux` are random oracles. The first two have 256-bit outputs
+that are reduced modulo `n`. The nonce coefficient hash is the BIP's.
+
+The adversary makes at most `qh`, `qn` and `qa` queries to the three oracles
+and opens at most `qs` sessions. `extra_in` is a value of any finite type
+`Ex`. -/
+theorem bytes_nonceGenSk_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fintype Ex]
+    [DecidableEq Ex] (N qs : ℕ)
+    (A : SkAdversaryH n N Point B32 B32 B32 B32 Ex (Fin (2 ^ 256)) (Fin (2 ^ 256)) Coins)
+    (e₀ : Ex) (mask : (ZMod n)ˣ → B32 ≃ B32) (hN : N < n) (qh qn qa : ℕ)
+    (hA : ∀ c P, NBound (A c P) qa)
+    (hG : ∀ c P (Aux : B32 → B32), NBound (answerG Aux (A c P)) qn)
+    (hH : ∀ c P G (Aux : B32 → B32),
+      HashBound (answerG (fun _ : Ex => ()) (answerG G (answerG Aux (A c P)))) qh) :
+    nonceGenSkAdvantageH secp256k1X nonceCoef32 N qs (redFin (2 ^ 256)) A (redFin (2 ^ 256)) e₀
+        mask ≤
+      Real.sqrt ((qh + qs + 1 : ℕ) *
+        (omdlAdvantage secp256k1X (2 * qs + 1)
+            (reduction secp256k1X nonceCoef32 N qs
+              (withTable N (withAux N (liftHashSk N (liftFin n_lt.le) A)))) +
+          collisionAdvantage secp256k1X nonceCoef32 N qs
+            (withTable N (withAux N (liftHashSk N (liftFin n_lt.le) A))))) +
+        (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ) +
+        (qh + qs + N : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ)) +
+        (qs : ℝ) ^ 2 / ((2 ^ 256 : ℕ) : ℝ) + qs * (qn / ((2 ^ 256 : ℕ) : ℝ)) +
+        (2 * qs : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - (n - 1)) / ((2 ^ 256 : ℕ) : ℝ)) +
+        (qs : ℝ) ^ 2 / ((2 ^ 256 : ℕ) : ℝ) + qs * (qa / ((2 ^ 256 : ℕ) : ℝ)) := by
+  have h := nonceGenSk_unforgeable_fin secp256k1X nonceCoef32 N qs e₀ mask n_lt.le A hN qh qn qa
+    hA hG hH
+  rw [card_B32] at h
+  exact h
+
+set_option synthInstance.maxSize 4000 in
+/-- **BIP 459 with 32-byte keys and messages, `NonceGen` without its `sk`
+argument and 256-bit hashes is unforgeable under AOMDL.** The `rand` of
+`NonceGen` is a uniform 32-byte value. `hash_BIP0459/sig` and
+`hash_BIP0459/nonce` are random oracles with 256-bit outputs that are reduced
+modulo `n`. The nonce coefficient hash is the BIP's. -/
+theorem bytes_nonceGen_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fintype Ex]
+    [DecidableEq Ex] (N qs : ℕ)
+    (A : NAdversaryH n N Point B32 B32 B32 Ex (Fin (2 ^ 256)) (Fin (2 ^ 256)) Coins) (e₀ : Ex)
+    (hN : N < n) (qh qn : ℕ) (hA : ∀ c P, NBound (A c P) qn)
+    (hH : ∀ c P G, HashBound (answerG (fun _ : Ex => ()) (answerG G (A c P))) qh) :
+    nonceGenAdvantageH secp256k1X nonceCoef32 N qs (redFin (2 ^ 256)) A (redFin (2 ^ 256)) e₀ ≤
+      Real.sqrt ((qh + qs + 1 : ℕ) *
+        (omdlAdvantage secp256k1X (2 * qs + 1)
+            (reduction secp256k1X nonceCoef32 N qs
+              (withTable N (liftHashN N (liftFin n_lt.le) A))) +
+          collisionAdvantage secp256k1X nonceCoef32 N qs
+            (withTable N (liftHashN N (liftFin n_lt.le) A)))) +
+        (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ) +
+        (qh + qs + N : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ)) +
+        (qs : ℝ) ^ 2 / ((2 ^ 256 : ℕ) : ℝ) + qs * (qn / ((2 ^ 256 : ℕ) : ℝ)) +
+        (2 * qs : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - (n - 1)) / ((2 ^ 256 : ℕ) : ℝ)) := by
+  have h := nonceGen_unforgeable_fin secp256k1X nonceCoef32 N qs e₀ n_lt.le A hN qh qn hA hH
+  rw [card_B32] at h
+  exact h
 
 /-! ## The instance runs the byte-level algorithms -/
 
