@@ -99,14 +99,17 @@ def wellFormed (pks msgs : List Bytes) (u : ℕ) : Bool :=
 variable (O : Ops n Point Bytes)
 
 /-- `NonceGen` with the random value `rand'` as an argument, returning
-`(secnonce, pubnonce)`. -/
+`(secnonce, pubnonce)`. It fails unless `rand'` and `sk`, if present, are 32
+bytes. -/
 def nonceGen (rand' : Bytes) (sk : Option Bytes) (extraIn : Bytes) : Option (Bytes × Bytes) :=
-  let rand := match sk with
-    | some sk => List.zipWith (· ^^^ ·) sk (taggedHash "BIP0459/aux" rand')
-    | none => rand'
-  let r (i : UInt8) := scalarWrap (taggedHash "BIP0459/nonce" (rand ++ extraIn ++ [i]))
-  (Dahlias.nonceGen O (r 0) (r 1)).map fun (sec, pub) =>
-    (serScalar sec.1 ++ serScalar sec.2, serNonce pub)
+  if is32 rand' && sk.all is32 then
+    let rand := match sk with
+      | some sk => List.zipWith (· ^^^ ·) sk (taggedHash "BIP0459/aux" rand')
+      | none => rand'
+    let r (i : UInt8) := scalarWrap (taggedHash "BIP0459/nonce" (rand ++ extraIn ++ [i]))
+    (Dahlias.nonceGen O (r 0) (r 1)).map fun (sec, pub) =>
+      (serScalar sec.1 ++ serScalar sec.2, serNonce pub)
+  else none
 
 /-- `NonceAgg`. -/
 def nonceAgg (pubnonces : List Bytes) : Option Bytes :=
