@@ -16,7 +16,7 @@ About 1,000 lines of definitions and statements decide whether the results mean 
 8. `Dahlias/Proofs/Reduction.lean`, the types of `reduction` and `collider`, and `reductionLazy` in `Dahlias/LazyReduction.lean`.
 9. `Dahlias/Bytes.lean` and the statements of `Dahlias/Encoding.lean`, for BIP 459's bytes.
 
-taproot-lean supplies the curve interface (`Taproot.Curve`), secp256k1 and SHA-256. A full review reads those definitions too.
+taproot-lean supplies the curve interface (`Taproot.Curve`), secp256k1 and SHA-256. A full review reads those definitions too. taproot-lean checks the order of secp256k1's generator with compiled code. `Dahlias/OrderG.lean` proves it from a certificate that the kernel checks, and the theorems here use that proof (`secp256k1F`), so only the test vector checks depend on compiled code.
 
 The model was compared with BIP 459 at bitcoin/bips commit [`f3d1668`](https://github.com/bitcoin/bips/blob/f3d1668891fcdad99770245110bc6a22c87bce97/bip-0459.mediawiki). CI takes the test vectors and the Python reference from the same commit.
 
@@ -1201,7 +1201,7 @@ theorem verify_eq_false_of_one_bad {pm : List (X × M)} {pubnonces : List (PubNo
 ```lean
 /-- The secp256k1 operations of BIP 459, on 32-byte x-coordinates. -/
 def specOps : Ops n Point Bytes where
-  mulG := secp256k1.mulG
+  mulG := secp256k1F.mulG
   smul k P := k.val • P
   x := xbytes
   hasEvenY := hasEvenY

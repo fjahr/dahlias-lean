@@ -38,11 +38,11 @@ theorem secp256k1_unforgeable {M Coins : Type} [Fintype M] [DecidableEq M] [Fint
     (nonceCoef : Point → Point → List (F × M × Point) → ZMod n) (N qs : ℕ)
     (A : Adversary n N Point F M Coins) (hN : N < n) (qh : ℕ)
     (hA : ∀ coins P, HashBound (A coins P) qh) (hS : ∀ coins P, NoSingle N (A coins P)) :
-    forgeAdvantage secp256k1 nonceCoef N qs A *
-        (forgeAdvantage secp256k1 nonceCoef N qs A / (qh + qs + 1 : ℕ) - 1 / n) ≤
-      omdlAdvantage secp256k1 (2 * qs + 1) (reduction secp256k1 nonceCoef N qs A) +
-        collisionAdvantage secp256k1 nonceCoef N qs A :=
-  unforgeable secp256k1 nonceCoef N qs A hN qh hA hS
+    forgeAdvantage secp256k1F nonceCoef N qs A *
+        (forgeAdvantage secp256k1F nonceCoef N qs A / (qh + qs + 1 : ℕ) - 1 / n) ≤
+      omdlAdvantage secp256k1F (2 * qs + 1) (reduction secp256k1F nonceCoef N qs A) +
+        collisionAdvantage secp256k1F nonceCoef N qs A :=
+  unforgeable secp256k1F nonceCoef N qs A hN qh hA hS
 
 /-- **BIP 459 on secp256k1 is strongly binding.** That secp256k1 has prime
 order is `secp256k1_primeOrder` in `Dahlias.PrimeOrder`. -/
@@ -50,7 +50,7 @@ theorem secp256k1_strongly_binding {M Coins : Type} [Fintype M] [DecidableEq M] 
     (nonceCoef : Point → Point → List (F × M × Point) → ZMod n) (N : ℕ)
     (A : BindAdversary n N F M Coins) (hN : N < n) (qh : ℕ)
     (hA : ∀ coins T, (QTree.fresh T (A coins)).length ≤ qh) :
-    prob (bindExperiment secp256k1 nonceCoef N A) ≤ ((qh + 2 * N : ℕ) : ℝ) ^ 2 / n :=
-  strongly_binding secp256k1 nonceCoef N A secp256k1_primeOrder hN qh hA
+    prob (bindExperiment secp256k1F nonceCoef N A) ≤ ((qh + 2 * N : ℕ) : ℝ) ^ 2 / n :=
+  strongly_binding secp256k1F nonceCoef N A secp256k1_primeOrder hN qh hA
 
 end Dahlias.Security

@@ -1,4 +1,4 @@
-import Taproot.Secp256k1
+import Dahlias.OrderG
 
 /-!
 # secp256k1 has prime order
@@ -31,7 +31,7 @@ theorem pointCode_injective : Function.Injective pointCode := by
   · exact absurd h (by simp)
   · exact absurd h (by simp)
   · simp only [Option.some.injEq, Prod.mk.injEq] at h
-    exact secp256k1.eq_of_x_eq hP hQ h.1 h.2
+    exact secp256k1F.eq_of_x_eq hP hQ h.1 h.2
 
 instance : Finite Point := Finite.of_injective pointCode pointCode_injective
 
@@ -61,7 +61,7 @@ theorem three_n_gt : 2 * p + 1 < n * 3 := by decide +kernel
 /-- **secp256k1 has exactly `n` points.** -/
 theorem card_point : Nat.card Point = n := by
   have hdvd : n ∣ Nat.card Point := by
-    rw [← secp256k1.addOrderOf_G]
+    rw [← secp256k1F.addOrderOf_G]
     exact addOrderOf_dvd_natCard _
   obtain ⟨k, hk⟩ := hdvd
   have hle := card_point_le

@@ -15,6 +15,7 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 | `bytes_unforgeable`, `bytes_strongly_binding` | `Dahlias/BytesSecurity.lean` | Both security theorems for secp256k1 with 32-byte public keys and messages and the BIP's nonce coefficient hash. `sign_val` and `verify_val` say that this instance runs the byte-level `Sign` and `Verify`. |
 | `unforgeable_sqrt_fin`, `bytes_unforgeable_256`, `hash_gap` | `Dahlias/Hashed.lean`, `Dahlias/BytesSecurity.lean` | The same with the challenge hash as BIP 459 computes it. The random oracle has 256-bit outputs, which the adversary sees and `Sign` and `Verify` reduce modulo `n`. This costs at most `(qh + qs + N) / 2^127`. |
 | `sigInput_injective`, `nonceCoefInput_injective`, `cpoint_eq_some_iff`, `matchIdxs_bytes`, `sign_bytes`, `verify_bytes` | `Dahlias/Encoding.lean` | The byte encodings lose nothing. The hash inputs determine the structured inputs, no point has two encodings, and `Sign` and `Verify` on bytes are those of the instance of `bytes_unforgeable`. |
+| `n_smul_G`, `secp256k1F` | `Dahlias/OrderG.lean`, `Dahlias/OrderCert.lean` | The generator of secp256k1 has order `n`. The kernel checks a certificate, a double-and-add chain with every slope and intermediate point written out, so no theorem depends on compiled code. `secp256k1F` is secp256k1 as the curve interface with this proof. |
 | `secp256k1_primeOrder` | `Dahlias/PrimeOrder.lean` | secp256k1 has exactly `n` points. |
 | `localFork_prob` | `Dahlias/LocalFork.lean`, `Dahlias/Fork.lean` | The local forking lemma of Bellare, Dai and Li. |
 | `verify_honest` | `Dahlias/Correctness.lean`, `Dahlias/BytesCorrectness.lean` | An honest session produces a signature that verifies, for the model and for the byte-level algorithms. |
@@ -29,12 +30,13 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 | `ros_bits`, `ros_forgery` | `Dahlias/Ros.lean` | The ROS attack: if `Sign` only checked that the combination of public key, message and `R2` is unique, `ℓ ≥ log₂ n` concurrent sessions would give a forgery. |
 | test vectors | `Dahlias/Vectors.lean` | All 60 rows of the seven vector files of `bip-0459/vectors`. |
 
-`Dahlias/Summary.lean` prints the axioms of every result. The theorems use Lean's three standard axioms. The test vectors and the statements about secp256k1 also use compiled evaluation (`native_decide`).
+`Dahlias/Summary.lean` prints the axioms of every result. The theorems, including those about secp256k1, use Lean's three standard axioms. Only the test vector checks also use compiled evaluation (`native_decide`).
 
 ## Layout
 
 - `Dahlias/Basic.lean`: the algorithms of BIP 459.
 - `Dahlias/Bytes.lean`: the algorithms on byte arrays, with the BIP's encodings, range checks and SHA-256 tagged hashes. `Dahlias/Encoding.lean`: what the encodings preserve.
+- `Dahlias/OrderG.lean`, `Dahlias/OrderCert.lean`: the order of secp256k1's generator, from a certificate that the kernel checks.
 - `Dahlias/Security.lean`: the unforgeability game and the AOMDL game.
 - `Dahlias/Alg.lean`, `Dahlias/QueryRun.lean`, `Dahlias/Prob.lean`: deterministic oracle algorithms and probabilities on finite sample spaces.
 - `Dahlias/Proofs/`: the reduction to AOMDL, for the game in which a single-party signature uses a derived nonce.
@@ -60,10 +62,11 @@ scripts/replay.sh
 
 The toolchain is Lean v4.34.1 with Mathlib v4.34.1. The first build compiles the dependencies that have no cache and takes a while.
 
-`Dahlias/VectorData.lean` and the last section of `REVIEW.md` are generated:
+`Dahlias/VectorData.lean`, `Dahlias/OrderCert.lean` and the last section of `REVIEW.md` are generated:
 
 ```sh
 python3 scripts/gen_vectors.py path/to/bips/bip-0459/vectors > Dahlias/VectorData.lean
+python3 scripts/gen_order_cert.py > Dahlias/OrderCert.lean
 python3 scripts/gen_review.py
 ```
 

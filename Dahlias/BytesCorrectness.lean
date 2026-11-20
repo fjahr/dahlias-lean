@@ -46,7 +46,7 @@ theorem scalar_serScalar (s : ZMod n) : scalar (serScalar s) = some s := by
 /-! ## An honest session -/
 
 /-- The byte arrays an honest signer holds or sends. -/
-def pkOf (σ : Signer n Bytes) : Bytes := xbytes (secp256k1.mulG σ.sk)
+def pkOf (σ : Signer n Bytes) : Bytes := xbytes (secp256k1F.mulG σ.sk)
 def skOf (σ : Signer n Bytes) : Bytes := serScalar σ.sk
 def secnonceOf (σ : Signer n Bytes) : Bytes := serScalar σ.r₁ ++ serScalar σ.r₂
 def pubnonceOf (σ : Signer n Bytes) : Bytes := serNonce (σ.pubnonce secp256k1B)

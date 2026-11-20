@@ -96,8 +96,8 @@ theorem p_lt : p < 2 ^ 256 := by decide
 /-- **secp256k1 with 32-byte x-coordinates.** -/
 def secp256k1B : Curve n Point Bytes where
   G := G
-  G_ne_zero := secp256k1.G_ne_zero
-  order_G := n_smul_G
+  G_ne_zero := secp256k1F.G_ne_zero
+  order_G := OrderG.n_smul_G
   x := xbytes
   hasEvenY := hasEvenY
   liftX := specOps.liftX

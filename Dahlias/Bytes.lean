@@ -1,4 +1,5 @@
 import Dahlias.Basic
+import Dahlias.OrderG
 import Taproot.BIP340Vectors
 
 /-!
@@ -27,7 +28,7 @@ def xbytes (P : Point) : Bytes := bytes32 (xCoord P).val
 
 /-- The secp256k1 operations of BIP 459, on 32-byte x-coordinates. -/
 def specOps : Ops n Point Bytes where
-  mulG := secp256k1.mulG
+  mulG := secp256k1F.mulG
   smul k P := k.val • P
   x := xbytes
   hasEvenY := hasEvenY
@@ -41,11 +42,15 @@ def fastOps : Ops n Point Bytes where
   hasEvenY := hasEvenY
   liftX b := if b.length = 32 ∧ toNatBE b < p then liftXFast (toNatBE b : F) else none
 
+theorem mulGFast_eq_mulG (k : ZMod n) : mulGFast k = secp256k1F.mulG k := by
+  rw [mulGFast, smulDA_eq, Curve.mulG_eq_val_smul]
+  rfl
+
 theorem fastOps_eq : fastOps = specOps := by
   simp only [fastOps, specOps, liftXFast_eq, smulDA_eq]
   congr 1
   funext k
-  exact mulGFast_eq k
+  exact mulGFast_eq_mulG k
 
 /-! ## Encodings -/
 

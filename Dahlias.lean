@@ -1,4 +1,6 @@
 import Dahlias.Basic
+import Dahlias.OrderCert
+import Dahlias.OrderG
 import Dahlias.Correctness
 import Dahlias.Blame
 import Dahlias.Single
