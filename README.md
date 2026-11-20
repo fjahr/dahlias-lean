@@ -14,6 +14,7 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 | `omdlAdvantage_le_std`, `unforgeable_sqrt_std` | `Dahlias/OmdlStd.lean` | The main theorem under the usual AOMDL assumption, whose challenges have uniform discrete logarithms. The game here draws them from the nonzero scalars, which costs at most `c / n` for `c` challenges. |
 | `strongly_binding`, `secp256k1_strongly_binding` | `Dahlias/Binding.lean`, `Dahlias/Secp256k1.lean` | An adversary with at most `qh` random oracle queries finds a signature that is valid for two different lists of at most `N` entries with probability at most `(qh + 2N)² / n`. |
 | `bytes_unforgeable`, `bytes_strongly_binding` | `Dahlias/BytesSecurity.lean` | Both security theorems for secp256k1 with 32-byte public keys and messages and the BIP's nonce coefficient hash. `sign_val` and `verify_val` say that this instance runs the byte-level `Sign` and `Verify`. |
+| `strongly_binding_fin`, `bytes_strongly_binding_256` | `Dahlias/BindingHashed.lean`, `Dahlias/BytesSecurity.lean` | Strong binding with the challenge hash as BIP 459 computes it. The 256-bit oracle costs at most `(qh + 2N) / 2^127` on top of the bound. |
 | `unforgeable_sqrt_fin`, `bytes_unforgeable_256`, `hash_gap` | `Dahlias/Hashed.lean`, `Dahlias/BytesSecurity.lean` | The same with the challenge hash as BIP 459 computes it. The random oracle has 256-bit outputs, which the adversary sees and `Sign` and `Verify` reduce modulo `n`. This costs at most `(qh + qs + N) / 2^127`. |
 | `sigInput_injective`, `nonceCoefInput_injective`, `collision_bytes`, `cpoint_eq_some_iff`, `matchIdxs_bytes`, `sign_bytes`, `verify_bytes` | `Dahlias/Encoding.lean` | The byte encodings lose nothing. The hash inputs determine the structured inputs, so a collision of the nonce coefficient hash is a pair of different byte strings with tagged SHA-256 hashes that are congruent modulo `n`. No point has two encodings, and `Sign` and `Verify` on bytes are those of the instance of `bytes_unforgeable`. |
 | `n_smul_G`, `secp256k1F` | `Dahlias/OrderG.lean`, `Dahlias/OrderCert.lean` | The generator of secp256k1 has order `n`. The kernel checks a certificate, a double-and-add chain with every slope and intermediate point written out, so no theorem depends on compiled code. `secp256k1F` is secp256k1 as the curve interface with this proof. |
@@ -46,7 +47,7 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 - `Dahlias/Lazy.lean`, `Dahlias/Second.lean`, `Dahlias/NonceProb.lean`: lazily sampled oracles, algorithms with a second oracle, and the counting lemmas for oracle values at secret points.
 - `Dahlias/NonceGen.lean`, `Dahlias/NonceGenSk.lean`: the game with nonces derived as in `NonceGen`.
 - `Dahlias/LazyReduction.lean`: the reduction with a lazily sampled random oracle.
-- `Dahlias/Hashed.lean`: the game with hash outputs that are reduced modulo `n`.
+- `Dahlias/Hashed.lean`, `Dahlias/BindingHashed.lean`: the games with hash outputs that are reduced modulo `n`.
 - `Dahlias/Examples.lean`: a forger that wins the game by guessing the key, as a check that the definitions are not vacuous.
 - `Dahlias/Tightness.lean`: a forger that shows the additive term of the bound is needed.
 - `Dahlias/Blame.lean`: `PartialSigVerify` finds a disruptive signer.

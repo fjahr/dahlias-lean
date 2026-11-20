@@ -2,6 +2,7 @@ import Dahlias.Secp256k1
 import Dahlias.BytesCorrectness
 import Dahlias.Proofs.Game
 import Dahlias.Hashed
+import Dahlias.BindingHashed
 
 /-!
 # The security theorems for 32-byte keys and messages
@@ -104,6 +105,17 @@ theorem bytes_strongly_binding {Coins : Type} [Fintype Coins] (N : ℕ)
     (hA : ∀ coins T, (QTree.fresh T (A coins)).length ≤ qh) :
     prob (bindExperiment secp256k1X nonceCoef32 N A) ≤ ((qh + 2 * N : ℕ) : ℝ) ^ 2 / n :=
   strongly_binding secp256k1X nonceCoef32 N A secp256k1_primeOrder hN qh hA
+
+set_option synthInstance.maxSize 2000 in
+/-- **BIP 459 with 32-byte keys and messages is strongly binding**, with the
+challenge hash as a 256-bit random oracle reduced modulo `n`. -/
+theorem bytes_strongly_binding_256 {Coins : Type} [Fintype Coins] (N : ℕ)
+    (A : BindAdversaryH n N B32 B32 (Fin (2 ^ 256)) Coins) (hN : N < n) (qh : ℕ)
+    (hA : ∀ coins Tab, (QTree.fresh Tab (A coins)).length ≤ qh) :
+    prob (bindExperimentH secp256k1X nonceCoef32 N (redFin (2 ^ 256)) A) ≤
+      ((qh + 2 * N : ℕ) : ℝ) ^ 2 / n +
+        (qh + 2 * N : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ)) :=
+  strongly_binding_fin secp256k1X nonceCoef32 N n_lt.le A secp256k1_primeOrder hN qh hA
 
 /-! ## The instance runs the byte-level algorithms -/
 

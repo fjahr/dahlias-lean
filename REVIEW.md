@@ -34,7 +34,7 @@ The model was compared with BIP 459 at bitcoin/bips commit [`f3d1668`](https://g
 
 **What is random?** The secret key and the nonces are uniform nonzero scalars. In `unforgeable` and `unforgeable_sqrt` the challenge hash is a uniform table of scalars, on inputs with lists of at most `N` entries. `forgeAdvantage_eq_lazy` proves that the game has the same advantage when the oracle answers every new query with the next of `qh + qs + N` uniform scalars. The coins of `reduction` contain a whole table. `reductionLazy` takes `2·(qh + qs) + 1` scalars instead and wins the AOMDL game with the same probability (`omdlAdvantage_reduction_eq_lazy`), and `unforgeable_sqrt_lazy` is the theorem with that reduction. The framework has no cost model, so there is no statement about running time.
 
-**How is the challenge hash reduced modulo `n`?** BIP 459 computes `c = int(hash(…)) mod n` from a 256-bit hash. In the game of `Dahlias/Hashed.lean` the oracle returns a uniform element of a type `H` of hash outputs. The adversary sees the outputs, and `Sign` and `Verify` turn them into scalars with `red`. `forgeAdvantageH_le` reduces this game to the one with scalar answers. The game reads at most `qh + qs + N` oracle values, and each is outside a fixed set of `n` outputs, one for every scalar, with probability `(|H| - n) / |H|`. For `H = {0, …, 2^256 - 1}` and `red h = h mod n` that is at most `2^-127` (`hash_gap`), and `bytes_unforgeable_256` is the theorem for secp256k1.
+**How is the challenge hash reduced modulo `n`?** BIP 459 computes `c = int(hash(…)) mod n` from a 256-bit hash. In the game of `Dahlias/Hashed.lean` the oracle returns a uniform element of a type `H` of hash outputs. The adversary sees the outputs, and `Sign` and `Verify` turn them into scalars with `red`. `forgeAdvantageH_le` reduces this game to the one with scalar answers. The game reads at most `qh + qs + N` oracle values, and each is outside a fixed set of `n` outputs, one for every scalar, with probability `(|H| - n) / |H|`. For `H = {0, …, 2^256 - 1}` and `red h = h mod n` that is at most `2^-127` (`hash_gap`), and `bytes_unforgeable_256` is the theorem for secp256k1. `Dahlias/BindingHashed.lean` does the same for strong binding, where the game reads at most `qh + 2⋅N` oracle values (`strongly_binding_fin`, `bytes_strongly_binding_256`).
 
 **What is the nonce coefficient hash?** A fixed function into the scalars, `nonceCoef`. The theorem holds for every such function and measures how often `collider` outputs a collision of it. This is the usual way to state collision resistance for an unkeyed hash function. BIP 459's `int(hash_BIP0459/noncecoef(…)) mod n` is such a function (`nonceCoef32`). `collision_bytes` proves that a collision of it is a pair of different byte strings whose tagged SHA-256 values are congruent modulo `n`, so equal or `n` apart. That includes the inputs with the point at infinity, which the game hashes for the nonce of a single-party signature: `cbytes` maps that point to `02 ‖ 0^32`, and no curve point has the x-coordinate `0` (`sq_ne_seven`).
 
@@ -64,7 +64,7 @@ What BIP 459 says about correctness and security, and the theorem for it.
 | Nonce Generation: `NonceGen` with a uniform `rand'`. | `nonceGen_unforgeable`, with `hash_BIP0459/nonce` as a random oracle and an `extra_in` chosen by the adversary. `nonceGenSk_advantage` adds the optional `sk` argument. |
 | Nonce Generation: the optional arguments may prevent key exposure if `rand'` is not uniform. | No theorem. Both theorems assume a uniform `rand'`. |
 | Role of the Coordinator and Security: a malicious coordinator colluding with all but one signer cannot forge. | `unforgeable_sqrt`. The adversary of the game is the coordinator and every other signer. |
-| List Ordering: a signature valid for a list is not valid for a non-trivial permutation of it, except with negligible probability. `Sign`: the aggregate signature is valid for exactly this list. Security: the scheme is strongly binding. | `strongly_binding`, `secp256k1_strongly_binding`: a signature is valid for two different lists with probability at most `(qh + 2N)² / n`. |
+| List Ordering: a signature valid for a list is not valid for a non-trivial permutation of it, except with negligible probability. `Sign`: the aggregate signature is valid for exactly this list. Security: the scheme is strongly binding. | `strongly_binding`, `secp256k1_strongly_binding`: a signature is valid for two different lists with probability at most `(qh + 2N)² / n`. `bytes_strongly_binding_256` is the statement for secp256k1 with 32-byte keys and messages and a 256-bit random oracle reduced modulo `n`, which adds `(qh + 2N) ⋅ (2^256 - n) / 2^256`. |
 | Rationale: 32-byte messages keep the encoding of the list `L` unambiguous. | `sigInput_injective`, and `nonceCoefInput_injective` for the nonce coefficient. |
 | Rationale: verifiers should hash the common prefix `L ‖ xbytes(R)` once. | No theorem. The model hashes every input from the start. libsecp256k1 hashes the prefix once, and the differential test compares the two. |
 | Rationale: two nonces per signer prevent the ROS attack across concurrent sessions. | `unforgeable_sqrt`, for any number of concurrent sessions. No theorem about a scheme with one nonce per signer. |
@@ -1151,7 +1151,7 @@ theorem nonceGenSk_advantage (g : (ZMod n)ˣ → W) (hg : Injective g) (hρ : �
 
 ### Binding
 
-`Dahlias/Binding.lean`.
+`Dahlias/Binding.lean`, and `Dahlias/BindingHashed.lean` for the oracle with hash outputs.
 
 ```lean
 /-- A deterministic algorithm with adaptive queries to a function `D → S`. -/
@@ -1202,6 +1202,49 @@ with probability at most `(qh + 2⋅N)² / n`. -/
 theorem strongly_binding (hE : Curve.PrimeOrder n E) (hN : N < n) (qh : ℕ)
     (hA : ∀ coins T, (fresh T (A coins)).length ≤ qh) :
     prob (bindExperiment C nonceCoef N A) ≤ ((qh + 2 * N : ℕ) : ℝ) ^ 2 / n
+```
+
+```lean
+/-- A binding adversary whose oracle answers with hash outputs in `H`. -/
+abbrev BindAdversaryH (n N : ℕ) (X M H Coins : Type) :=
+  Coins → QTree (SigIn N X M) H (List (X × M) × List (X × M) × (X × ZMod n))
+```
+
+```lean
+/-- **The strong binding game with hash outputs** on one sample. The oracle is
+a table of hash outputs, which the adversary sees, and `Verify` reduces them
+to scalars with `red`. -/
+def bindExperimentH {Coins : Type} (A : BindAdversaryH n N X M H Coins)
+    (ω : Coins × (SigIn N X M → H)) : Prop :=
+  (eval ω.2 (A ω.1)).1 ≠ (eval ω.2 (A ω.1)).2.1 ∧
+    (eval ω.2 (A ω.1)).1.length ≤ N ∧ (eval ω.2 (A ω.1)).2.1.length ≤ N ∧
+    verify C.ops (hashesOf N nonceCoef fun z => red (ω.2 z)) (eval ω.2 (A ω.1)).1
+      (eval ω.2 (A ω.1)).2.2 = true ∧
+    verify C.ops (hashesOf N nonceCoef fun z => red (ω.2 z)) (eval ω.2 (A ω.1)).2.1
+      (eval ω.2 (A ω.1)).2.2 = true
+```
+
+```lean
+/-- **Strong binding with BIP 459's challenge hash**: an `m`-valued random
+oracle reduced modulo `n`, for `m = 2²⁵⁶`. A signature is valid for two
+different lists with probability at most the bound of `strongly_binding` plus
+`(qh + 2⋅N) ⋅ (m - n) / m`. -/
+theorem strongly_binding_fin {m : ℕ} (hm : n ≤ m) (A : BindAdversaryH n N X M (Fin m) Coins)
+    (hE : Curve.PrimeOrder n E) (hN : N < n) (qh : ℕ)
+    (hA : ∀ coins (Tab : SigIn N X M → Fin m), (fresh Tab (A coins)).length ≤ qh) :
+    prob (bindExperimentH C nonceCoef N (redFin m) A) ≤
+      ((qh + 2 * N : ℕ) : ℝ) ^ 2 / n + (qh + 2 * N : ℕ) * ((m - n : ℝ) / m)
+```
+
+```lean
+/-- **BIP 459 with 32-byte keys and messages is strongly binding**, with the
+challenge hash as a 256-bit random oracle reduced modulo `n`. -/
+theorem bytes_strongly_binding_256 {Coins : Type} [Fintype Coins] (N : ℕ)
+    (A : BindAdversaryH n N B32 B32 (Fin (2 ^ 256)) Coins) (hN : N < n) (qh : ℕ)
+    (hA : ∀ coins Tab, (QTree.fresh Tab (A coins)).length ≤ qh) :
+    prob (bindExperimentH secp256k1X nonceCoef32 N (redFin (2 ^ 256)) A) ≤
+      ((qh + 2 * N : ℕ) : ℝ) ^ 2 / n +
+        (qh + 2 * N : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ))
 ```
 
 ### Finding a disruptive signer
@@ -1484,6 +1527,7 @@ The definitions of the project that the statements of the results in `Dahlias/Su
 - `Dahlias/Attacks.lean`: `Security.challengerWith`, `Security.msgSwap`, `Security.sgn`, `Security.signNoMsgCheck`
 - `Dahlias/Basic.lean`: `Hashes`, `Ops`, `PubNonce`, `SecNonce`, `coefItems`, `getSessionValues`, `keySum`, `matchIdxs`, `nonceAgg`, `nonceGen`, `partialSigVerify`, `sigAgg`, `sign`, `tweakPK`, `tweakSK`, `verify`, `Ops.evenScalar`, `Ops.signOf`, `Taproot.Curve.ops`
 - `Dahlias/Binding.lean`: `Security.BindAdversary`, `Security.bindExperiment`
+- `Dahlias/BindingHashed.lean`: `Security.BindAdversaryH`, `Security.bindExperimentH`, `Security.liftBind`
 - `Dahlias/Bytes.lean`: `Bytes.cbytes`, `Bytes.cpoint`, `Bytes.hashes`, `Bytes.is32`, `Bytes.nonceAgg`, `Bytes.nonceGen`, `Bytes.parseNonce`, `Bytes.partialSigVerify`, `Bytes.scalar`, `Bytes.scalarWrap`, `Bytes.serNonce`, `Bytes.serScalar`, `Bytes.sigAgg`, `Bytes.sign`, `Bytes.specOps`, `Bytes.tweakPKOfSK`, `Bytes.tweakSK`, `Bytes.verify`, `Bytes.wellFormed`, `Bytes.xbytes`
 - `Dahlias/BytesCorrectness.lean`: `Bytes.pkOf`, `Bytes.pubnonceOf`, `Bytes.secnonceOf`, `Bytes.skOf`
 - `Dahlias/BytesCurve.lean`: `Bytes.secp256k1B`
@@ -1493,7 +1537,7 @@ The definitions of the project that the statements of the results in `Dahlias/Su
 - `Dahlias/Examples.lean`: `Security.guesser`
 - `Dahlias/Fork.lean`: `QTree.Accepts`, `QTree.Forks`
 - `Dahlias/Hashed.lean`: `Security.AdvRH`, `Security.AdversaryH`, `Security.ForgeSampleH`, `Security.challengerH`, `Security.forgeAdvantageH`, `Security.forgeExperimentH`, `Security.liftFin`, `Security.liftHash`, `Security.redFin`
-- `Dahlias/Lazy.lean`: `QTree.evalLazy`, `QTree.memo`, `QTree.stream`
+- `Dahlias/Lazy.lean`: `QTree.evalLazy`, `QTree.mapTree`, `QTree.memo`, `QTree.stream`
 - `Dahlias/LazyGame.lean`: `Security.LazySample`, `Security.lazyExperiment`, `Security.verifyWith`, `Security.winTail`, `Security.winTree`
 - `Dahlias/LazyReduction.lean`: `Security.RM`, `Security.rdFork`, `Security.rdTable`, `Security.readAll`, `Security.reductionBodyM`, `Security.reductionLazy`, `Security.reductionM`, `Security.simChallengerM`
 - `Dahlias/LocalFork.lean`: `LocalFork.accCount`, `LocalFork.forkCount`

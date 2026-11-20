@@ -90,9 +90,11 @@ SECTIONS = [
        ["SkAdversary", "withAux", "winSk", "nonceGenSkExperiment", "nonceGenSkAdvantage",
         "nonceGenSk_advantage"])]),
     ("Binding",
-     "`Dahlias/Binding.lean`.",
+     "`Dahlias/Binding.lean`, and `Dahlias/BindingHashed.lean` for the oracle with hash outputs.",
      [("Dahlias/QueryRun.lean", ["QTree", "eval", "flog", "fresh"]),
-      ("Dahlias/Binding.lean", ["BindAdversary", "bindExperiment", "strongly_binding"])]),
+      ("Dahlias/Binding.lean", ["BindAdversary", "bindExperiment", "strongly_binding"]),
+      ("Dahlias/BindingHashed.lean", ["BindAdversaryH", "bindExperimentH", "strongly_binding_fin"]),
+      ("Dahlias/BytesSecurity.lean", ["bytes_strongly_binding_256"])]),
     ("Finding a disruptive signer",
      "`Dahlias/Correctness.lean` and `Dahlias/Blame.lean`. The statements hold for every choice "
      "of the hash functions.",
