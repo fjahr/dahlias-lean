@@ -78,9 +78,10 @@ What BIP 459 says about correctness and security, and the theorem for it.
 
 ## What the theorems do not say
 
-- No theorem bounds running time. `reduction` runs the forger twice, which is visible in its definition. `reductionLazy` shows that it needs no table of exponential size.
+- No theorem bounds running time. `reduction` runs the forger twice, which is visible in its definition. `reductionLazy` shows that it needs no table of exponential size. There is no such statement for `collider` yet: its sample has a whole table of the random oracle.
 - The game is for lists of at most `N` entries, with `N < n`.
 - The nonces of the game are uniform. `nonceGen_unforgeable` and `nonceGenSk_advantage` derive them as `NonceGen` does, from a uniform `rand'` and with the hash functions of `NonceGen` as random oracles. They say nothing about a `rand'` that is not uniform, which is the case the optional arguments of `NonceGen` exist for.
+- No single theorem has `NonceGen`, the 256-bit challenge hash and the bytes together. `nonceGen_unforgeable` is for a general curve and the challenge hash with scalar answers, and `bytes_unforgeable_256` is for uniform nonces.
 - No theorem states a game in which the adversary sends bytes. In `bytes_unforgeable_256` public keys and messages are 32-byte arrays and the hashes are BIP 459's, but the adversary sends points for the nonces and scalars for the tweaks. `sign_bytes` and `verify_bytes` connect that instance to the functions on bytes.
 - `hash_BIP0459/sig` is a random oracle on structured inputs with lists of at most `N` entries. SHA-256 on the bytes is a function of those inputs (`sigInput_injective`), and modelling it as a random function is the assumption.
 - A single-party signature of the game is for a list of keys that are all tweaks `α + β⋅x`, `β ≠ 0`, of the one honest key. The theorem does not cover a party that signs alone for several unrelated secret keys.
