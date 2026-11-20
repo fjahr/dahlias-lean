@@ -11,6 +11,7 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 | Theorem | File | Statement |
 | --- | --- | --- |
 | `unforgeable`, `unforgeable_sqrt`, `secp256k1_unforgeable` | `Dahlias/Unforgeability.lean`, `Dahlias/Secp256k1.lean` | A forger with success probability `adv`, at most `qh` random oracle queries and `qs` signing sessions gives an AOMDL adversary and a collision finder with `adv * (adv / q - 1 / n) ≤ omdl + coll` for `q = qh + qs + 1`. If the forger may also ask the signer for single-party signatures, `adv ≤ sqrt (q * (omdl + coll)) + q / n + qs / (n - 1)`. |
+| `omdlAdvantage_le_std`, `unforgeable_sqrt_std` | `Dahlias/OmdlStd.lean` | The main theorem under the usual AOMDL assumption, whose challenges have uniform discrete logarithms. The game here draws them from the nonzero scalars, which costs at most `c / n` for `c` challenges. |
 | `strongly_binding`, `secp256k1_strongly_binding` | `Dahlias/Binding.lean`, `Dahlias/Secp256k1.lean` | An adversary with at most `qh` random oracle queries finds a signature that is valid for two different lists of at most `N` entries with probability at most `(qh + 2N)² / n`. |
 | `bytes_unforgeable`, `bytes_strongly_binding` | `Dahlias/BytesSecurity.lean` | Both security theorems for secp256k1 with 32-byte public keys and messages and the BIP's nonce coefficient hash. `sign_val` and `verify_val` say that this instance runs the byte-level `Sign` and `Verify`. |
 | `unforgeable_sqrt_fin`, `bytes_unforgeable_256`, `hash_gap` | `Dahlias/Hashed.lean`, `Dahlias/BytesSecurity.lean` | The same with the challenge hash as BIP 459 computes it. The random oracle has 256-bit outputs, which the adversary sees and `Sign` and `Verify` reduce modulo `n`. This costs at most `(qh + qs + N) / 2^127`. |
@@ -41,6 +42,7 @@ The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper]
 - `Dahlias/Alg.lean`, `Dahlias/QueryRun.lean`, `Dahlias/Prob.lean`: deterministic oracle algorithms and probabilities on finite sample spaces.
 - `Dahlias/Proofs/`: the reduction to AOMDL, for the game in which a single-party signature uses a derived nonce.
 - `Dahlias/Derived.lean`: from that game to the game with a uniform nonce.
+- `Dahlias/OmdlStd.lean`: the AOMDL game with uniform challenges.
 - `Dahlias/Lazy.lean`, `Dahlias/Second.lean`, `Dahlias/NonceProb.lean`: lazily sampled oracles, algorithms with a second oracle, and the counting lemmas for oracle values at secret points.
 - `Dahlias/NonceGen.lean`, `Dahlias/NonceGenSk.lean`: the game with nonces derived as in `NonceGen`.
 - `Dahlias/LazyReduction.lean`: the reduction with a lazily sampled random oracle.

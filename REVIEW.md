@@ -44,6 +44,8 @@ The model was compared with BIP 459 at bitcoin/bips commit [`f3d1668`](https://g
 
 **Is the binding game the paper's?** `bindExperiment` is the game of Fig. 11 with the random oracle of the unforgeability game: the adversary outputs two lists and one signature and wins if the lists differ and the signature verifies for both. The theorem counts the adversary's own oracle queries. The `2N` in the bound are the verifier's queries. It holds for groups of prime order, and `secp256k1_primeOrder` proves that secp256k1 is one.
 
+**Is the AOMDL game the usual one?** The game of `Dahlias/Security.lean` draws the discrete logarithms of its challenges from the nonzero scalars, because the challenges stand for the secret key and the nonces, which are nonzero. The usual game draws them from all scalars. `Dahlias/OmdlStd.lean` has that game. `omdlAdvantage_le_std` shows that an adversary's advantages in the two differ by at most `c / n` for `c` challenges, and `unforgeable_sqrt_std` is the main theorem with the usual game: the reduction's `2⋅qs + 1` challenges add `(2⋅qs + 1) / n` next to its advantage.
+
 **What does the bound say?** With `q = qh + qs + 1`, `unforgeable` states `adv * (adv / q - 1 / n) ≤ omdl + coll` for adversaries that ask for no single-party signatures (`NoSingle`). This is the bound of the paper's Theorem 2 up to the count of queries. `unforgeable_sqrt` holds for all adversaries: `adv ≤ sqrt (q * (omdl + coll)) + q / n + qs / (n - 1)`. The square root is the loss of the forking lemma, and `qs / (n - 1)` pays for the single-party signatures.
 
 **Is the bound tight?** Its additive term is. `grinder` makes `q` random oracle queries and no signing queries, and it computes no discrete logarithm. For each of `q` messages it asks for the challenge of the list `[(pk, m)]` with `R = pk`, and if a challenge is `-1` the signature `(pk, 0)` is valid. It forges with probability at least `1 - ((n - 1) / n)^q`, which is at least `q / (n + q)` (`grinder_advantage`, `grinder_advantage_ge`). `unforgeable_sqrt` bounds this forger by `sqrt (…) + (q + 1) / n`. No theorem here says that the square root or the term `qs / (n - 1)` is needed.
@@ -81,7 +83,6 @@ What BIP 459 says about correctness and security, and the theorem for it.
 - The nonces of the game are uniform. `nonceGen_unforgeable` and `nonceGenSk_advantage` derive them as `NonceGen` does, from a uniform `rand'` and with the hash functions of `NonceGen` as random oracles. They say nothing about a `rand'` that is not uniform, which is the case the optional arguments of `NonceGen` exist for.
 - No theorem states a game in which the adversary sends bytes. In `bytes_unforgeable_256` public keys and messages are 32-byte arrays and the hashes are BIP 459's, but the adversary sends points for the nonces and scalars for the tweaks. `sign_bytes` and `verify_bytes` connect that instance to the functions on bytes.
 - `hash_BIP0459/sig` is a random oracle on structured inputs with lists of at most `N` entries. SHA-256 on the bytes is a function of those inputs (`sigInput_injective`), and modelling it as a random function is the assumption.
-- The challenges of the AOMDL game have nonzero discrete logarithms, because they stand for the secret key and the nonces, which are nonzero.
 - A single-party signature of the game is for a list of keys that are all tweaks `α + β⋅x`, `β ≠ 0`, of the one honest key. The theorem does not cover a party that signs alone for several unrelated secret keys.
 
 ## Machine checks
@@ -571,7 +572,7 @@ theorem challenger_single (items : List (Tweak n × M)) (st : SignerState X M)
 
 ### The AOMDL game
 
-`Dahlias/Security.lean`.
+`Dahlias/Security.lean`, with challenges that have nonzero discrete logarithms, and `Dahlias/OmdlStd.lean`, with uniform challenges.
 
 ```lean
 /-- The queries of an AOMDL adversary. -/
@@ -630,6 +631,47 @@ def omdlExperiment (C : Curve n E X) (c : ℕ) {Coins : Type} (B : OmdlAdversary
 noncomputable def omdlAdvantage (C : Curve n E X) (c : ℕ) {Coins : Type} [Fintype Coins]
     (B : OmdlAdversary n E Coins) : ℝ :=
   prob (omdlExperiment C c B)
+```
+
+```lean
+/-- The discrete logarithms of the first `ℓ` challenges. -/
+def chalLogsStd {c : ℕ} (xs : Fin c → ZMod n) (ℓ : ℕ) : List (ZMod n) :=
+  (List.range ℓ).map fun i => if h : i < c then xs ⟨i, h⟩ else 0
+```
+
+```lean
+/-- The game's answers, for challenges with the discrete logarithms `xs`. -/
+def omdlChallengerStd {c : ℕ} (xs : Fin c → ZMod n) :
+    (q : OmdlQ n) → ℕ × ℕ → OmdlR E q × (ℕ × ℕ)
+  | .chal, (ℓ, d) =>
+    if h : ℓ < c then (some (C.mulG (xs ⟨ℓ, h⟩)), (ℓ + 1, d)) else (none, (ℓ, d))
+  | .dlog a bs, (ℓ, d) =>
+    (a + (List.zipWith (· * ·) bs (chalLogsStd xs ℓ)).sum, (ℓ, d + 1))
+```
+
+```lean
+/-- **The AOMDL game with uniform challenges** on one sample: at most `c`
+challenges with the discrete logarithms `xs`, which may be zero. The adversary
+wins if it outputs the discrete logarithms of all challenges it received and
+made fewer discrete logarithm queries than it received challenges. -/
+def omdlExperimentStd (c : ℕ) {Coins : Type} (B : OmdlAdversary n E Coins)
+    (ω : (Fin c → ZMod n) × Coins) : Prop :=
+  let out := (B ω.2).run (omdlChallengerStd C ω.1) (0, 0)
+  out.1 = chalLogsStd ω.1 out.2.1 ∧ out.2.2 < out.2.1
+```
+
+```lean
+/-- The adversary's probability of winning the AOMDL game with uniform
+challenges. -/
+noncomputable def omdlAdvantageStd (c : ℕ) {Coins : Type} [Fintype Coins]
+    (B : OmdlAdversary n E Coins) : ℝ :=
+  prob (omdlExperimentStd C c B)
+```
+
+```lean
+/-- **Nonzero challenges cost at most `c / n`.** -/
+theorem omdlAdvantage_le_std (c : ℕ) (B : OmdlAdversary n E Coins) :
+    omdlAdvantage C c B ≤ omdlAdvantageStd C c B + c / n
 ```
 
 ### Unforgeability
@@ -705,6 +747,18 @@ theorem unforgeable_sqrt (hN : N < n) (qh : ℕ) (hA : ∀ coins P, HashBound (A
     forgeAdvantage C nonceCoef N qs A ≤
       Real.sqrt ((qh + qs + 1 : ℕ) * (omdlAdvantage C (2 * qs + 1) (reduction C nonceCoef N qs A) +
         collisionAdvantage C nonceCoef N qs A)) + (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ)
+```
+
+```lean
+/-- **BIP 459 is unforgeable under AOMDL with uniform challenges.** This is
+`unforgeable_sqrt` with the advantage of `reduction A` in the game whose
+challenges have uniform discrete logarithms. The `2⋅qs + 1` challenges that
+the reduction asks for add `(2⋅qs + 1) / n`. -/
+theorem unforgeable_sqrt_std (hN : N < n) (qh : ℕ) (hA : ∀ coins P, HashBound (A coins P) qh) :
+    forgeAdvantage C nonceCoef N qs A ≤
+      Real.sqrt ((qh + qs + 1 : ℕ) *
+        (omdlAdvantageStd C (2 * qs + 1) (reduction C nonceCoef N qs A) + (2 * qs + 1 : ℕ) / n +
+          collisionAdvantage C nonceCoef N qs A)) + (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ)
 ```
 
 ```lean
@@ -1445,6 +1499,7 @@ The definitions of the project that the statements of the results in `Dahlias/Su
 - `Dahlias/LocalFork.lean`: `LocalFork.accCount`, `LocalFork.forkCount`
 - `Dahlias/NonceGen.lean`: `Security.NAdversary`, `Security.Rest`, `Security.challengerE`, `Security.nonceGenAdvantage`, `Security.nonceGenExperiment`, `Security.noncePt`, `Security.nvOf`, `Security.winE`, `Security.withTable`
 - `Dahlias/NonceGenSk.lean`: `Security.SkAdversary`, `Security.nonceGenSkAdvantage`, `Security.nonceGenSkExperiment`, `Security.winSk`, `Security.withAux`
+- `Dahlias/OmdlStd.lean`: `Security.chalLogsStd`, `Security.omdlAdvantageStd`, `Security.omdlChallengerStd`, `Security.omdlExperimentStd`
 - `Dahlias/OrderG.lean`: `secp256k1F`
 - `Dahlias/Prob.lean`: `prob`
 - `Dahlias/QueryRun.lean`: `QTree`, `QTree.askAll`, `QTree.eval`, `QTree.flog`, `QTree.fresh`, `QTree.queryAll`

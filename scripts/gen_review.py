@@ -47,10 +47,14 @@ SECTIONS = [
      [("Dahlias/Single.lean", ["singleList", "signSingle"]),
       ("Dahlias/SingleGame.lean", ["challenger_single"])]),
     ("The AOMDL game",
-     "`Dahlias/Security.lean`.",
+     "`Dahlias/Security.lean`, with challenges that have nonzero discrete logarithms, and "
+     "`Dahlias/OmdlStd.lean`, with uniform challenges.",
      [("Dahlias/Security.lean",
        ["OmdlQ", "OmdlR", "OmdlAdversary", "chalLogs", "omdlChallenger", "omdlExperiment",
-        "omdlAdvantage"])]),
+        "omdlAdvantage"]),
+      ("Dahlias/OmdlStd.lean",
+       ["chalLogsStd", "omdlChallengerStd", "omdlExperimentStd", "omdlAdvantageStd",
+        "omdlAdvantage_le_std"])]),
     ("Unforgeability",
      "`Dahlias/Unforgeability.lean`, `Dahlias/Proofs/Reduction.lean` and "
      "`Dahlias/LazyReduction.lean`. Of the reduction and the collision finder only the types "
@@ -58,6 +62,7 @@ SECTIONS = [
      [("Dahlias/Proofs/Reduction.lean", ["ncHash", "IsCollision", "reduction!", "collider!"]),
       ("Dahlias/Unforgeability.lean",
        ["collisionAdvantage", "NoSingle", "unforgeable", "unforgeable_sqrt"]),
+      ("Dahlias/OmdlStd.lean", ["unforgeable_sqrt_std"]),
       ("Dahlias/LazyReduction.lean", ["reductionLazy", "unforgeable_sqrt_lazy"])]),
     ("The additive term of the bound",
      "`Dahlias/Tightness.lean`. A forger that makes `q` random oracle queries, no signing "
