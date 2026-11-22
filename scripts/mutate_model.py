@@ -2,7 +2,7 @@
 """
 Mutation test of the Lean model.
 
-Usage: python3 scripts/mutate_model.py [--only NAME,NAME,...]
+Usage: python3 scripts/mutate_model.py [--only NAME,NAME,...] [--in-place]
 
 Copies the project into a temporary directory, with the build outputs, and for
 each named mutant of a definition runs `lake build Dahlias` there. Prints the
@@ -11,6 +11,10 @@ theorems do not depend on what it changes. The script fails if there is one.
 
 The copy uses `cp -c` (copy-on-write on APFS) when it can, so it needs little
 disk space on macOS. Elsewhere it copies the dependencies' build outputs too.
+
+With `--in-place` the script mutates this checkout instead of a copy. It puts
+the sources back, but the build outputs are then those of the last mutant.
+This is for CI, where the checkout is thrown away.
 """
 
 import argparse
@@ -97,22 +101,31 @@ def failures(tree, out):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", help="comma-separated mutant names")
+    ap.add_argument("--in-place", action="store_true",
+                    help="mutate this checkout instead of a copy")
     args = ap.parse_args()
     wanted = set(args.only.split(",")) if args.only else None
-    env = dict(os.environ, PATH=os.path.expanduser("~/.elan/bin") + os.pathsep + os.environ["PATH"])
-
+    if args.in_place:
+        sys.exit(run(ROOT, wanted))
     with tempfile.TemporaryDirectory() as tmp:
         tree = Path(tmp) / "project"
         tree.mkdir()
         copy_project(tree)
-        build = ["lake", "build", "Dahlias"]
-        if subprocess.run(build, cwd=tree, env=env, capture_output=True).returncode != 0:
-            sys.exit("the unmutated project does not build")
-        survivors = []
-        for name, description, edits in MUTANTS:
-            if wanted is not None and name not in wanted:
-                continue
-            saved = {}
+        sys.exit(run(tree, wanted))
+
+
+def run(tree, wanted):
+    """Build every wanted mutant in `tree`. Returns 1 if one of them builds."""
+    env = dict(os.environ, PATH=os.path.expanduser("~/.elan/bin") + os.pathsep + os.environ["PATH"])
+    build = ["lake", "build", "Dahlias"]
+    if subprocess.run(build, cwd=tree, env=env, capture_output=True).returncode != 0:
+        sys.exit("the unmutated project does not build")
+    survivors = []
+    for name, description, edits in MUTANTS:
+        if wanted is not None and name not in wanted:
+            continue
+        saved = {}
+        try:
             for path, old, new in edits:
                 src = (tree / path).read_text()
                 saved.setdefault(path, src)
@@ -120,16 +133,17 @@ def main():
                     sys.exit(f"{name}: expected one occurrence in {path}, found {src.count(old)}")
                 (tree / path).write_text(src.replace(old, new))
             r = subprocess.run(build, cwd=tree, env=env, capture_output=True, text=True)
+        finally:
             for path, src in saved.items():
                 (tree / path).write_text(src)
-            if r.returncode == 0:
-                print(f"{name}: {description}\n    builds", flush=True)
-                survivors.append(name)
-            else:
-                where = failures(tree, r.stdout + r.stderr) or ["an unknown place"]
-                print(f"{name}: {description}\n    fails in {', '.join(where)}", flush=True)
-        print(f"survivors: {', '.join(survivors) or 'none'}")
-        sys.exit(1 if survivors else 0)
+        if r.returncode == 0:
+            print(f"{name}: {description}\n    builds", flush=True)
+            survivors.append(name)
+        else:
+            where = failures(tree, r.stdout + r.stderr) or ["an unknown place"]
+            print(f"{name}: {description}\n    fails in {', '.join(where)}", flush=True)
+    print(f"survivors: {', '.join(survivors) or 'none'}")
+    return 1 if survivors else 0
 
 
 if __name__ == "__main__":
