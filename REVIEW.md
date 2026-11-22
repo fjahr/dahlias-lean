@@ -13,7 +13,7 @@ The definitions and statements below decide whether the results mean anything. [
 5. `Dahlias/Hashed.lean`, the game in which the random oracle returns hash outputs, and the statement of `unforgeable_sqrt_fin`.
 6. `Dahlias/NonceGen.lean` and `Dahlias/NonceGenSk.lean`, the games with nonces derived as in `NonceGen`, and the statements. Then `Dahlias/NonceGenHashed.lean`, the games that also have the hash outputs of step 5, the forgers `withStream` and `withAuxStream` in `Dahlias/NonceGenLazy.lean`, and the statements of `bytes_nonceGenSk_unforgeable_256` and `bytes_nonceGen_unforgeable_256` in `Dahlias/BytesSecurity.lean`.
 7. `Dahlias/Binding.lean`, the header, `bindExperiment` and the statement of `strongly_binding`.
-8. `Dahlias/Proofs/Reduction.lean`, all definitions: `reduction`, `collider` and what they call. The theorems measure these two algorithms, so their bodies are part of the statement. Then `reductionLazy` in `Dahlias/LazyReduction.lean` and `colliderLazy` in `Dahlias/LazyCollider.lean`.
+8. `Dahlias/Proofs/Reduction.lean`, all definitions: `reduction`, `collider` and what they call. The theorems measure these two algorithms, so their bodies are part of the statement. Then `reductionLazy` in `Dahlias/LazyReduction.lean` and `colliderLazy` in `Dahlias/LazyCollider.lean`. The theorems for `NonceGen` with a counter measure a third algorithm, `keyForger` in `Dahlias/NonceGenCounter.lean`.
 9. `Dahlias/Bytes.lean` and the statements of `Dahlias/Encoding.lean`, for BIP 459's bytes.
 
 taproot-lean supplies the curve interface (`Taproot.Curve`), secp256k1 and SHA-256. A full review reads those definitions too. taproot-lean checks the order of secp256k1's generator with compiled code. `Dahlias/OrderG.lean` proves it from a certificate that the kernel checks, and the theorems here use that proof (`secp256k1F`), so only the test vector checks depend on compiled code.
@@ -62,7 +62,7 @@ What BIP 459 says about correctness and security, and the theorem for it.
 | General Signing Flow: if the aggregate signature is invalid, the coordinator can find the disruptive signer with `PartialSigVerify`. `PartialSigVerify`: if it succeeds for all signers, `SigAgg` with the aggregate nonce from `NonceAgg` gives a valid signature. | `verify_sigAgg_of_partialSigVerify`, and `exists_partialSigVerify_eq_false` for the contrapositive: an invalid aggregate has a partial signature that fails. `partialSigVerify_iff_eq_sign`: at an honest signer's index the partial signature that `Sign` returns passes and no other value does, so an honest signer is not blamed and nobody can pass in its place. `verify_eq_false_of_one_bad`: one bad partial signature among good ones makes the aggregate invalid. Two bad ones can cancel, and `PartialSigVerify` still fails for both. |
 | General Signing Flow and Security: a `secnonce` must not be used twice. Three executions of `Sign` in different sessions reveal the secret key. Nonce Generation: the same holds for nonces derived deterministically. | `evenScalar_of_three_sessions`, if a determinant of public values is nonzero. `evenScalar_of_nonce_reuse` for two executions with the same session values and different challenges. |
 | Nonce Generation: `NonceGen` with a uniform `rand'`. | `nonceGen_unforgeable`, with `hash_BIP0459/nonce` as a random oracle and an `extra_in` chosen by the adversary. `nonceGenSk_advantage` adds the optional `sk` argument. `bytes_nonceGenSk_unforgeable_256` and `bytes_nonceGen_unforgeable_256` are the statements for 32-byte values and 256-bit hashes. |
-| Nonce Generation: the optional arguments may prevent key exposure if `rand'` is not uniform. | No theorem. Both theorems assume a uniform `rand'`. |
+| Nonce Generation: the optional arguments may prevent key exposure if `rand'` is not uniform. | `bytes_nonceGenCtr_unforgeable_256` for one case: the `sk` argument is given and `rand'` is a public counter value that does not repeat, as in `secp256k1_fullagg_nonce_gen_counter`. No theorem for any other `rand'` that is not uniform, or for `extra_in`. |
 | Role of the Coordinator and Security: a malicious coordinator colluding with all but one signer cannot forge. | `unforgeable_sqrt`. The adversary of the game is the coordinator and every other signer. |
 | List Ordering: a signature valid for a list is not valid for a non-trivial permutation of it, except with negligible probability. `Sign`: the aggregate signature is valid for exactly this list. Security: the scheme is strongly binding. | `strongly_binding`, `secp256k1_strongly_binding`: a signature is valid for two different lists with probability at most `(qh + 2N)² / n`. `bytes_strongly_binding_256` is the statement for secp256k1 with 32-byte keys and messages and a 256-bit random oracle reduced modulo `n`, which adds `(qh + 2N) ⋅ (2^256 - n) / 2^256`. |
 | Rationale: 32-byte messages keep the encoding of the list `L` unambiguous. | `sigInput_injective`, and `nonceCoefInput_injective` for the nonce coefficient. |
@@ -80,7 +80,7 @@ What BIP 459 says about correctness and security, and the theorem for it.
 
 - No theorem bounds running time. `reduction` runs the forger twice, which is visible in its definition. `reductionLazy` and `colliderLazy` show that neither algorithm of the theorem needs a table of exponential size.
 - The game is for lists of at most `N` entries, with `N < n`.
-- The nonces of the game are uniform. `nonceGen_unforgeable` and `nonceGenSk_advantage` derive them as `NonceGen` does, from a uniform `rand'` and with the hash functions of `NonceGen` as random oracles. They say nothing about a `rand'` that is not uniform, which is the case the optional arguments of `NonceGen` exist for.
+- The nonces of the game are uniform. `nonceGen_unforgeable` and `nonceGenSk_advantage` derive them as `NonceGen` does, from a uniform `rand'` and with the hash functions of `NonceGen` as random oracles. `nonceGenCtr_advantage` and `bytes_nonceGenCtr_unforgeable_256` are for a `rand'` that is a public counter value, with the `sk` argument. Its counter values are distinct, and every nonce is generated with the secret key itself and not with a tweaked key. No theorem says anything about another `rand'` that is not uniform.
 - No theorem states a game in which the adversary sends bytes. In `bytes_unforgeable_256` public keys and messages are 32-byte arrays and the hashes are BIP 459's, but the adversary sends points for the nonces and scalars for the tweaks. `sign_bytes` and `verify_bytes` connect that instance to the functions on bytes.
 - `hash_BIP0459/sig` is a random oracle on structured inputs with lists of at most `N` entries. SHA-256 on the bytes is a function of those inputs (`sigInput_injective`), and modelling it as a random function is the assumption.
 - A single-party signature of the game is for a list of keys that are all tweaks `α + β⋅x`, `β ≠ 0`, of the one honest key. The theorem does not cover a party that signs alone for several unrelated secret keys.
@@ -1456,6 +1456,269 @@ theorem bytes_nonceGen_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fintyp
         (2 * qs : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - (n - 1)) / ((2 ^ 256 : ℕ) : ℝ))
 ```
 
+### `NonceGen` with a counter in place of `rand'`
+
+`Dahlias/NonceGenCounter.lean` and `Dahlias/BytesSecurity.lean`. The signer runs `NonceGen` with its secret key and a public counter value, and no random value. The bound is for two forgers: the adversary, and `keyForger`, which recovers the secret key when the adversary queries the nonce hash at a `rand`.
+
+```lean
+/-- An algorithm without table queries. -/
+def liftQ : Alg Q R α → Alg (Q ⊕ D) (SumR R W) α
+  | .done a => .done a
+  | .ask q f => .ask (.inl q) fun r => liftQ (f r)
+```
+
+```lean
+/-- The algorithm that also returns a tally of its queries and their
+answers. -/
+def tally (upd : (q : Q) → R q → σ → σ) : Alg Q R α → σ → Alg Q R (α × σ)
+  | .done a, o => .done (a, o)
+  | .ask q f, o => .ask q fun r => tally upd (f r) (upd q r o)
+```
+
+```lean
+/-- A tally that leaves the queries of the table out. -/
+def liftUpd (upd : (q : Q) → R q → σ → σ) : (q : Q ⊕ D) → SumR R W q → σ → σ
+  | .inl q, r, o => upd q r o
+  | .inr _, _, o => o
+```
+
+```lean
+/-- Query the table at the points of a list. -/
+def askList : List D → Alg (Q ⊕ D) (SumR R W) (List W)
+  | [] => .done []
+  | y :: l => .ask (.inr y) fun a => askList l >>= fun as => .done (a :: as)
+```
+
+```lean
+/-- What a successful signing query adds to the signer's record: the list of
+a session, or the items of a single-party signature. -/
+abbrev SignedQ (n : ℕ) (X M : Type) := List (X × M) ⊕ List (Tweak n × M)
+```
+
+```lean
+/-- The successful signing queries, from a query and its answer. -/
+def trackOf : (q : AdvQ n N E X M) → AdvR q → List (SignedQ n X M) → List (SignedQ n X M)
+  | .hash _, _, tr => tr
+  | .openSession, _, tr => tr
+  | .close _ _ _ _ pm _, r, tr => if r.isSome then .inl pm :: tr else tr
+  | .single items, r, tr => if r.isSome then .inr items :: tr else tr
+```
+
+```lean
+/-- The list of public keys and messages of a successful signing query. -/
+def signedList (x : ZMod n) : SignedQ n X M → List (X × M)
+  | .inl pm => pm
+  | .inr items => singleKeys C x items
+```
+
+```lean
+/-- The tally of a forger: its queries to the nonce hash and its successful
+signing queries. -/
+def obsUpd {D₁ W₁ : Type} : (q : (AdvQ n N E X M ⊕ Ex) ⊕ D₁) → SumR (SumR AdvR Unit) W₁ q →
+    List D₁ × List (SignedQ n X M) → List D₁ × List (SignedQ n X M)
+  | .inl (.inl q), r, o => (o.1, trackOf N q r o.2)
+  | .inl (.inr _), _, o => o
+  | .inr z, _, o => (z :: o.1, o.2)
+```
+
+```lean
+/-- The secret key, from the queries to the nonce hash and the values of the
+aux hash at the counters: the first candidate that matches the public key. -/
+def findKey (P : E) (log : List (Rnd × Ex × Bool)) (as : List Rnd) : Option (ZMod n)ˣ :=
+  (log.product as).findSome? fun za =>
+    (unmask za.1.1 za.2).filter fun x' : (ZMod n)ˣ => decide (C.mulG (x' : ZMod n) = P)
+```
+
+```lean
+/-- A forgery by the holder of the secret key `x'`: a signature with the nonce
+`1` for the key itself and the first of the messages `msgs` whose list the
+signer has not signed. -/
+def forgeTail (x' : ZMod n) (tr : List (SignedQ n X M)) (fallback : Forgery n X M) :
+    Alg (AdvQ n N E X M) AdvR (Forgery n X M) :=
+  match (List.finRange (qs + 1)).find? fun j =>
+      decide ([(C.x (C.mulG x'), msgs j)] ∉ tr.map (signedList C x')) with
+  | none => .done fallback
+  | some j =>
+    if hN : [(C.x (C.mulG x'), msgs j)].length ≤ N then
+      .ask (.hash (⟨[(C.x (C.mulG x'), msgs j)], hN⟩, C.x (C.mulG 1),
+        (C.x (C.mulG x'), msgs j))) fun (c : ZMod n) =>
+          .done ⟨[(C.x (C.mulG x'), msgs j)], (0, 1), (C.x (C.mulG 1),
+            (if C.hasEvenY (C.mulG 1) then 1 else -1) + (c * C.ops.evenScalar x' + 0))⟩
+    else .done fallback
+```
+
+```lean
+/-- **The forger from a query at a secret point.** It runs `A` and keeps a
+tally of the queries to the nonce hash and of the successful signing queries.
+Then it reads the aux hash at the counters and looks for the secret key among
+the candidates that the queries to the nonce hash give. With the key it signs
+a new message. -/
+def keyForger (A : SkAdversary n N E X M Rnd Rp Ex W Coins) :
+    SkAdversary n N E X M Rnd Rp Ex W Coins := fun c P =>
+  tally (liftUpd (obsUpd N)) (A c P) ([], []) >>= fun out =>
+    askList ((List.finRange qs).map ctr) >>= fun as =>
+      match findKey C unmask P out.2.1 as with
+      | none => .done out.1
+      | some x' => liftQ (liftQ (liftQ (forgeTail C N qs msgs (x' : ZMod n) out.2.2 out.1)))
+```
+
+```lean
+/-- **The unforgeability game with `NonceGen`, its `sk` argument and a counter
+in place of `rand'`** on one sample: the `rand` of slot `k` is
+`mask x (Aux (ctr k))`. The counter values `ctr k` are public. The game is the
+one of `Dahlias.NonceGenSk` with them in place of the uniform values
+`rand'`. -/
+def nonceGenCtrExperiment
+    (ω : (Rest n N X M Coins × (Rnd × Ex × Bool → W)) × (Rp → Rnd)) : Prop :=
+  winSk C nonceCoef N qs A ρ e₀ mask ω.1 ω.2 fun k => ω.2 (ctr k)
+```
+
+```lean
+/-- The adversary's advantage in the game with a counter. -/
+noncomputable def nonceGenCtrAdvantage : ℝ :=
+  prob (nonceGenCtrExperiment C nonceCoef N qs ctr mask e₀ A ρ)
+```
+
+```lean
+/-- **`NonceGen` with a counter in place of `rand'`.** The counter values are
+distinct, the secret key can be read off a `rand` and the value of the aux
+hash (`unmask`), and there are `qs + 1` messages. Then an adversary wins the
+game at most as often as it and the forger `keyForger A` together win the game
+with uniform nonces, plus the terms for two equal values of the aux hash and
+for the reduction modulo the group order.
+
+The nonces are fresh values of the nonce hash unless the adversary queries it
+at a `rand`, and a `rand` gives the secret key. -/
+theorem nonceGenCtr_advantage (hctr : Injective ctr)
+    (hunmask : ∀ x a, unmask (mask x a) a = some x) (hmsgs : Injective msgs) (hN : 0 < N)
+    (g : (ZMod n)ˣ → W) (hg : Injective g) (hρ : ∀ u, ρ (g u) = u) :
+    nonceGenCtrAdvantage C nonceCoef N qs ctr mask e₀ A ρ ≤
+      forgeAdvantage C nonceCoef N qs (withTable N (withAux N A)) +
+        forgeAdvantage C nonceCoef N qs
+          (withTable N (withAux N (keyForger C N qs unmask msgs ctr A))) +
+        (qs : ℝ) ^ 2 / Fintype.card Rnd +
+        2 * ((2 * qs : ℕ) * ((Fintype.card W - Fintype.card (ZMod n)ˣ : ℝ) / Fintype.card W))
+```
+
+```lean
+/-- The bound of `unforgeable_sqrt_lazy_both` on the advantage of a forger
+that makes at most `qh` hash queries: the term with `reductionLazy` and
+`colliderLazy` and the two additive terms. -/
+noncomputable def lazyBound {Coins' : Type} [Fintype Coins'] (qh : ℕ)
+    (F : Adversary n N E X M Coins') : ℝ :=
+  Real.sqrt ((qh + qs + 1 : ℕ) *
+      (omdlAdvantage C (2 * qs + 1) (reductionLazy C nonceCoef N qs F (2 * (qh + qs) + 1)) +
+        collisionAdvantageLazy C nonceCoef N qs F (2 * (qh + qs)))) +
+    (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ)
+```
+
+```lean
+/-- **The unforgeability game with `NonceGen`, its `sk` argument, a counter in
+place of `rand'` and hash outputs in `H`** on one sample. -/
+def nonceGenCtrExperimentH
+    (ω : (RestH n N X M H Coins × (Rnd × Ex × Bool → W)) × (Rp → Rnd)) : Prop :=
+  nonceGenExperimentH C nonceCoef N qs red (fun c P => answerG ω.2 (AH c P)) ρ e₀
+    ((ω.1.1, fun k => mask ω.1.1.1 (ω.2 (ctr k))), ω.1.2)
+```
+
+```lean
+/-- The adversary's advantage in the game with a counter and hash outputs in
+`H`. -/
+noncomputable def nonceGenCtrAdvantageH : ℝ :=
+  prob (nonceGenCtrExperimentH C nonceCoef N qs ctr mask e₀ ρ red AH)
+```
+
+```lean
+/-- **BIP 459's `NonceGen` with its `sk` argument, a counter in place of
+`rand'`, and the challenge hash**: `m`-valued random oracles reduced modulo
+`n`, for `m = 2²⁵⁶`. -/
+theorem nonceGenCtr_unforgeable_fin [Inhabited Rnd] {m : ℕ} [NeZero m] (hm : n ≤ m)
+    (AH : SkAdversaryH n N E X M Rnd Rp Ex (Fin m) (Fin m) Coins) (hctr : Injective ctr)
+    (hunmask : ∀ x a, unmask (mask x a) a = some x) (hmsgs : Injective msgs) (hN0 : 0 < N)
+    (hN : N < n) (qh qn qa : ℕ) (hA : ∀ c P, NBound (AH c P) qa)
+    (hG : ∀ c P (Aux : Rp → Rnd), NBound (answerG Aux (AH c P)) qn)
+    (hH : ∀ c P G (Aux : Rp → Rnd),
+      HashBound (answerG (fun _ : Ex => ()) (answerG G (answerG Aux (AH c P)))) qh) :
+    nonceGenCtrAdvantageH C nonceCoef N qs ctr mask e₀ (redFin m) (redFin m) AH ≤
+      lazyBound C nonceCoef N qs qh
+          (withStream N qn (withAuxStream N qa (liftHashSk N (liftFin hm) AH))) +
+        lazyBound C nonceCoef N qs (qh + 1)
+          (withStream N qn (withAuxStream N (qa + qs)
+            (keyForger C N qs unmask msgs ctr (liftHashSk N (liftFin hm) AH)))) +
+        (qh + qs + N : ℕ) * ((m - n : ℝ) / m) +
+        (qs : ℝ) ^ 2 / Fintype.card Rnd +
+        2 * ((2 * qs : ℕ) * ((m - (n - 1) : ℝ) / m))
+```
+
+```lean
+/-- The byte-wise xor of two 32-byte arrays. -/
+def xor32 (a b : B32) : B32 :=
+  ⟨List.zipWith (· ^^^ ·) a.1 b.1, by rw [List.length_zipWith, a.2, b.2, min_self]⟩
+```
+
+```lean
+/-- `bytes(x)` as a 32-byte array. -/
+def ser32 (x : ZMod n) : B32 := ⟨serScalar x, length_bytes32 _⟩
+```
+
+```lean
+/-- **The `rand` of `NonceGen` with its `sk` argument**:
+`bytes(x) xor hash_BIP0459/aux(rand')`, as a bijection on the values of the
+aux hash. -/
+def maskXor (x : (ZMod n)ˣ) : B32 ≃ B32 where
+  toFun a := xor32 (ser32 (x : ZMod n)) a
+  invFun a := xor32 (ser32 (x : ZMod n)) a
+  left_inv a := Subtype.ext (zipXor_cancel_left _ _ ((ser32 (x : ZMod n)).2.trans a.2.symm))
+  right_inv a := Subtype.ext (zipXor_cancel_left _ _ ((ser32 (x : ZMod n)).2.trans a.2.symm))
+```
+
+```lean
+/-- The secret key from a `rand` and the value of the aux hash. -/
+def unmaskXor (r a : B32) : Option (ZMod n)ˣ :=
+  (scalar (xor32 r a).1).bind fun s => if h : s = 0 then none else some (Units.mk0 s h)
+```
+
+```lean
+/-- A `rand` and the value of the aux hash give the secret key. -/
+theorem unmaskXor_maskXor (x : (ZMod n)ˣ) (a : B32) : unmaskXor (maskXor x a) a = some x
+```
+
+```lean
+/-- **BIP 459 with 32-byte keys and messages, 256-bit hashes and `NonceGen`
+with a counter in place of `rand'` is unforgeable under AOMDL.** The signer
+runs `NonceGen` with its secret key and, for slot `k`, the public 32-byte
+value `ctr k` in place of a random value, as
+`secp256k1_fullagg_nonce_gen_counter` does. The values `ctr k` are distinct.
+`rand` is `bytes(x) xor hash_BIP0459/aux(ctr k)`. `hash_BIP0459/sig`,
+`hash_BIP0459/nonce` and `hash_BIP0459/aux` are random oracles, the first two
+with 256-bit outputs that are reduced modulo `n`. The nonce coefficient hash
+is the BIP's.
+
+The bound has the terms of `unforgeable_sqrt_lazy_both` twice: for the
+adversary, and for the forger `keyForger`, which finds the secret key when the
+adversary queries the nonce hash at a `rand`. `msgs` are any `qs + 1` distinct
+messages. -/
+theorem bytes_nonceGenCtr_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fintype Ex]
+    [DecidableEq Ex] (N qs : ℕ)
+    (A : SkAdversaryH n N Point B32 B32 B32 B32 Ex (Fin (2 ^ 256)) (Fin (2 ^ 256)) Coins)
+    (e₀ : Ex) (ctr : Fin qs → B32) (hctr : Function.Injective ctr) (msgs : Fin (qs + 1) → B32)
+    (hmsgs : Function.Injective msgs) (hN0 : 0 < N) (hN : N < n) (qh qn qa : ℕ)
+    (hA : ∀ c P, NBound (A c P) qa)
+    (hG : ∀ c P (Aux : B32 → B32), NBound (answerG Aux (A c P)) qn)
+    (hH : ∀ c P G (Aux : B32 → B32),
+      HashBound (answerG (fun _ : Ex => ()) (answerG G (answerG Aux (A c P)))) qh) :
+    nonceGenCtrAdvantageH secp256k1X nonceCoef32 N qs ctr maskXor e₀ (redFin (2 ^ 256))
+        (redFin (2 ^ 256)) A ≤
+      lazyBound secp256k1X nonceCoef32 N qs qh
+          (withStream N qn (withAuxStream N qa (liftHashSk N (liftFin n_lt.le) A))) +
+        lazyBound secp256k1X nonceCoef32 N qs (qh + 1)
+          (withStream N qn (withAuxStream N (qa + qs)
+            (keyForger secp256k1X N qs unmaskXor msgs ctr (liftHashSk N (liftFin n_lt.le) A)))) +
+        (qh + qs + N : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ)) +
+        (qs : ℝ) ^ 2 / ((2 ^ 256 : ℕ) : ℝ) +
+        2 * ((2 * qs : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - (n - 1)) / ((2 ^ 256 : ℕ) : ℝ)))
+```
+
 ### Binding
 
 `Dahlias/Binding.lean`, and `Dahlias/BindingHashed.lean` for the oracle with hash outputs.
@@ -1838,7 +2101,7 @@ The definitions of the project that the statements of the results in `Dahlias/Su
 - `Dahlias/Bytes.lean`: `Bytes.cbytes`, `Bytes.cpoint`, `Bytes.hashes`, `Bytes.is32`, `Bytes.nonceAgg`, `Bytes.nonceGen`, `Bytes.parseNonce`, `Bytes.partialSigVerify`, `Bytes.scalar`, `Bytes.scalarWrap`, `Bytes.serNonce`, `Bytes.serScalar`, `Bytes.sigAgg`, `Bytes.sign`, `Bytes.specOps`, `Bytes.tweakPKOfSK`, `Bytes.tweakSK`, `Bytes.verify`, `Bytes.wellFormed`, `Bytes.xbytes`
 - `Dahlias/BytesCorrectness.lean`: `Bytes.pkOf`, `Bytes.pubnonceOf`, `Bytes.secnonceOf`, `Bytes.skOf`
 - `Dahlias/BytesCurve.lean`: `Bytes.secp256k1B`
-- `Dahlias/BytesSecurity.lean`: `Security.Agree`, `Security.B32`, `Security.instDecidableEqB32`, `Security.instFintypeB32`, `Security.instInhabitedB32`, `Security.nonceCoef32`, `Security.secp256k1X`, `Security.vals`
+- `Dahlias/BytesSecurity.lean`: `Security.Agree`, `Security.B32`, `Security.instDecidableEqB32`, `Security.instFintypeB32`, `Security.instInhabitedB32`, `Security.maskXor`, `Security.nonceCoef32`, `Security.secp256k1X`, `Security.ser32`, `Security.unmaskXor`, `Security.vals`, `Security.xor32`
 - `Dahlias/Correctness.lean`: `Signer`, `Signer.pkm`, `Signer.pubnonce`
 - `Dahlias/Encoding.lean`: `Bytes.Items32`, `Bytes.Pairs32`, `Bytes.nonceCoefInput`, `Bytes.sigInput`, `Security.nonceCoefBytes`
 - `Dahlias/Examples.lean`: `Security.guesser`
@@ -1850,6 +2113,7 @@ The definitions of the project that the statements of the results in `Dahlias/Su
 - `Dahlias/LazyReduction.lean`: `Security.RM`, `Security.rdFork`, `Security.rdTable`, `Security.readAll`, `Security.reductionBodyM`, `Security.reductionLazy`, `Security.reductionM`, `Security.simChallengerM`
 - `Dahlias/LocalFork.lean`: `LocalFork.accCount`, `LocalFork.forkCount`
 - `Dahlias/NonceGen.lean`: `Security.NAdversary`, `Security.Rest`, `Security.challengerE`, `Security.nonceGenAdvantage`, `Security.nonceGenExperiment`, `Security.noncePt`, `Security.nvOf`, `Security.winE`, `Security.withTable`
+- `Dahlias/NonceGenCounter.lean`: `Security.SignedQ`, `Security.askList`, `Security.findKey`, `Security.forgeTail`, `Security.keyForger`, `Security.lazyBound`, `Security.liftUpd`, `Security.nonceGenCtrAdvantage`, `Security.nonceGenCtrAdvantageH`, `Security.nonceGenCtrExperiment`, `Security.nonceGenCtrExperimentH`, `Security.obsUpd`, `Security.signedList`, `Security.tally`, `Security.trackOf`
 - `Dahlias/NonceGenHashed.lean`: `Security.NAdversaryH`, `Security.RestH`, `Security.SkAdversaryH`, `Security.challengerEH`, `Security.hashAns`, `Security.liftHashN`, `Security.liftHashSk`, `Security.mapAns`, `Security.nonceGenAdvantageH`, `Security.nonceGenExperimentH`, `Security.nonceGenSkAdvantageH`, `Security.nonceGenSkExperimentH`, `Security.sumAns`
 - `Dahlias/NonceGenLazy.lean`: `Security.withAuxStream`, `Security.withStream`
 - `Dahlias/NonceGenSk.lean`: `Security.SkAdversary`, `Security.nonceGenSkAdvantage`, `Security.nonceGenSkExperiment`, `Security.winSk`, `Security.withAux`
@@ -1858,7 +2122,7 @@ The definitions of the project that the statements of the results in `Dahlias/Su
 - `Dahlias/Prob.lean`: `prob`
 - `Dahlias/QueryRun.lean`: `QTree`, `QTree.askAll`, `QTree.eval`, `QTree.flog`, `QTree.fresh`, `QTree.queryAll`
 - `Dahlias/Ros.lean`: `Security.effNonce`, `Security.rosBit`, `Security.rosCoef`, `Security.rosConst`, `Security.signTupleCheck`
-- `Dahlias/Second.lean`: `Security.NBound`, `Security.SumR`, `Security.answerG`, `Security.answerLazy`, `Security.liftQ`
+- `Dahlias/Second.lean`: `Security.NBound`, `Security.SumR`, `Security.answerG`, `Security.answerLazy`, `Security.gLog`, `Security.liftQ`
 - `Dahlias/Secp256k1.lean`: `Security.instFintypeBList`, `Security.instFintypeSigIn`
 - `Dahlias/Security.lean`: `Security.AdvQ`, `Security.AdvR`, `Security.Adversary`, `Security.BList`, `Security.ForgeSample`, `Security.Forgery`, `Security.HashBound`, `Security.OmdlAdversary`, `Security.OmdlQ`, `Security.OmdlR`, `Security.SigIn`, `Security.SignerState`, `Security.Tweak`, `Security.Wins`, `Security.chalLogs`, `Security.challenger`, `Security.challengerG`, `Security.forgeAdvantage`, `Security.forgeAdvantageG`, `Security.forgeExperimentG`, `Security.hashesOf`, `Security.omdlAdvantage`, `Security.omdlChallenger`, `Security.omdlExperiment`, `Security.singleKeys`, `Security.singleNcIn`, `Security.singleNonce`, `Security.singleS`, `Security.Tweak.sk`
 - `Dahlias/Single.lean`: `signSingle`, `singleList`

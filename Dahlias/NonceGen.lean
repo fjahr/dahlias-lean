@@ -364,6 +364,46 @@ def toForgeSample : (Rest n N X M Coins × (Rnd × Ex × Bool → W)) × (Fin qs
   right_inv _ := rfl
 
 set_option synthInstance.maxSize 4000 in
+/-- **Independent nonce values for every slot and every `extra_in` are as good
+as uniform nonzero nonces**, up to the reduction modulo the group order. -/
+theorem prob_winE_le (g : (ZMod n)ˣ → W) (hg : Injective g) (hρ : ∀ u, ρ (g u) = u) :
+    prob (fun s : (Rest n N X M Coins × (Rnd × Ex × Bool → W)) ×
+        (Fin qs × Ex × Bool → W) => winE C nonceCoef N qs A e₀ s.1.1 s.1.2 (nvOf qs ρ s.2)) ≤
+      forgeAdvantage C nonceCoef N qs (withTable N A) +
+        (2 * qs : ℕ) * ((Fintype.card W - Fintype.card (ZMod n)ˣ : ℝ) / Fintype.card W) := by
+  -- the `extra_in` does not matter
+  have hsel : prob (fun s : (Rest n N X M Coins × (Rnd × Ex × Bool → W)) ×
+      (Fin qs × Ex × Bool → W) => winE C nonceCoef N qs A e₀ s.1.1 s.1.2 (nvOf qs ρ s.2)) =
+      prob (fun s : (Rest n N X M Coins × (Rnd × Ex × Bool → W)) × (Fin qs × Bool → W) =>
+        winOf C nonceCoef N qs A s.1.1 s.1.2 fun i => ρ (s.2 i)) :=
+    prob_prod_congr _ _ fun a => prob_winE_eq C nonceCoef N qs A ρ e₀ a.1 a.2
+  rw [hsel]
+  have hle : Fintype.card (ZMod n)ˣ ≤ Fintype.card W := Fintype.card_le_of_injective g hg
+  have hc : (0 : ℝ) ≤ (2 * qs : ℕ) *
+      ((Fintype.card W - Fintype.card (ZMod n)ˣ : ℝ) / Fintype.card W) := by
+    have : (0 : ℝ) ≤ Fintype.card W - Fintype.card (ZMod n)ˣ :=
+      sub_nonneg.mpr (Nat.cast_le.mpr hle)
+    positivity
+  have hs := prob_prod_mono
+    (fun s : (Rest n N X M Coins × (Rnd × Ex × Bool → W)) × (Fin qs × Bool → W) =>
+      winOf C nonceCoef N qs A s.1.1 s.1.2 fun i => ρ (s.2 i))
+    (fun s : (Rest n N X M Coins × (Rnd × Ex × Bool → W)) × (Fin qs × Bool → (ZMod n)ˣ) =>
+      winOf C nonceCoef N qs A s.1.1 s.1.2 fun i => ρ (g (s.2 i))) _ hc fun a => by
+        have := prob_section (ι := Fin qs × Bool) g hg
+          (fun w => winOf C nonceCoef N qs A a.1 a.2 fun i => ρ (w i))
+        rw [Fintype.card_prod, Fintype.card_fin, Fintype.card_bool] at this
+        rw [show (2 * qs : ℕ) = qs * 2 from mul_comm 2 qs]
+        exact this
+  refine hs.trans (add_le_add (le_of_eq ?_) le_rfl)
+  unfold forgeAdvantage forgeAdvantageG
+  rw [← prob_equiv (toForgeSample (n := n) (N := N) (X := X) (M := M) (Coins := Coins)
+    (Rnd := Rnd) (Ex := Ex) (W := W) qs) (forgeExperiment C nonceCoef N qs (withTable N A))]
+  congr 1
+  funext s
+  simp only [hρ]
+  rfl
+
+set_option synthInstance.maxSize 4000 in
 /-- **`NonceGen` costs at most the three error terms.** -/
 theorem nonceGen_advantage (g : (ZMod n)ˣ → W) (hg : Injective g) (hρ : ∀ u, ρ (g u) = u)
     (qn : ℕ) (hA : ∀ c P, NBound (A c P) qn) :
@@ -382,43 +422,8 @@ theorem nonceGen_advantage (g : (ZMod n)ˣ → W) (hg : Injective g) (hρ : ∀ 
       dsimp only
       rw [answerG_congr G G' _ _ _ h])
     qn (fun θ G v => length_gLog _ _ _ _ _ (hA _ _))
-  -- the `extra_in` does not matter
-  have hsel : prob (fun s : (Rest n N X M Coins × (Rnd × Ex × Bool → W)) ×
-      (Fin qs × Ex × Bool → W) => winE C nonceCoef N qs A e₀ s.1.1 s.1.2 (nvOf qs ρ s.2)) =
-      prob (fun s : (Rest n N X M Coins × (Rnd × Ex × Bool → W)) × (Fin qs × Bool → W) =>
-        winOf C nonceCoef N qs A s.1.1 s.1.2 fun i => ρ (s.2 i)) :=
-    prob_prod_congr _ _ fun a => prob_winE_eq C nonceCoef N qs A ρ e₀ a.1 a.2
-  -- from derived nonces to uniform nonzero scalars
-  have h7 : prob (fun s : (Rest n N X M Coins × (Rnd × Ex × Bool → W)) × (Fin qs × Bool → W) =>
-        winOf C nonceCoef N qs A s.1.1 s.1.2 fun i => ρ (s.2 i)) ≤
-      forgeAdvantage C nonceCoef N qs (withTable N A) +
-      (2 * qs : ℕ) * ((Fintype.card W - Fintype.card (ZMod n)ˣ : ℝ) / Fintype.card W) := by
-    have hle : Fintype.card (ZMod n)ˣ ≤ Fintype.card W := Fintype.card_le_of_injective g hg
-    have hc : (0 : ℝ) ≤ (2 * qs : ℕ) *
-        ((Fintype.card W - Fintype.card (ZMod n)ˣ : ℝ) / Fintype.card W) := by
-      have : (0 : ℝ) ≤ Fintype.card W - Fintype.card (ZMod n)ˣ :=
-        sub_nonneg.mpr (Nat.cast_le.mpr hle)
-      positivity
-    have hs := prob_prod_mono
-      (fun s : (Rest n N X M Coins × (Rnd × Ex × Bool → W)) × (Fin qs × Bool → W) =>
-        winOf C nonceCoef N qs A s.1.1 s.1.2 fun i => ρ (s.2 i))
-      (fun s : (Rest n N X M Coins × (Rnd × Ex × Bool → W)) × (Fin qs × Bool → (ZMod n)ˣ) =>
-        winOf C nonceCoef N qs A s.1.1 s.1.2 fun i => ρ (g (s.2 i))) _ hc fun a => by
-          have := prob_section (ι := Fin qs × Bool) g hg
-            (fun w => winOf C nonceCoef N qs A a.1 a.2 fun i => ρ (w i))
-          rw [Fintype.card_prod, Fintype.card_fin, Fintype.card_bool] at this
-          rw [show (2 * qs : ℕ) = qs * 2 from mul_comm 2 qs]
-          exact this
-    refine hs.trans (add_le_add (le_of_eq ?_) le_rfl)
-    unfold forgeAdvantage forgeAdvantageG
-    rw [← prob_equiv (toForgeSample (n := n) (N := N) (X := X) (M := M) (Coins := Coins)
-      (Rnd := Rnd) (Ex := Ex) (W := W) qs) (forgeExperiment C nonceCoef N qs (withTable N A))]
-    congr 1
-    funext s
-    simp only [hρ]
-    rfl
+  have h7 := prob_winE_le C nonceCoef N qs A ρ e₀ g hg hρ
   unfold nonceGenAdvantage nonceGenExperiment
-  rw [hsel] at H
   linarith
 
 /-- **Unforgeability with `NonceGen`**, under AOMDL with both

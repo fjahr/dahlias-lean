@@ -31,6 +31,7 @@ import Dahlias.Binding
 import Dahlias.BindingHashed
 import Dahlias.NonceGenHashed
 import Dahlias.NonceGenLazy
+import Dahlias.NonceGenCounter
 import Dahlias.PrimeOrder
 import Dahlias.Tweaks
 import Dahlias.Secp256k1

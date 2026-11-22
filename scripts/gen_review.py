@@ -108,6 +108,20 @@ SECTIONS = [
         "nonceGenSk_unforgeable_fin"]),
       ("Dahlias/BytesSecurity.lean",
        ["card_B32", "bytes_nonceGenSk_unforgeable_256", "bytes_nonceGen_unforgeable_256"])]),
+    ("`NonceGen` with a counter in place of `rand'`",
+     "`Dahlias/NonceGenCounter.lean` and `Dahlias/BytesSecurity.lean`. The signer runs "
+     "`NonceGen` with its secret key and a public counter value, and no random value. The "
+     "bound is for two forgers: the adversary, and `keyForger`, which recovers the secret key "
+     "when the adversary queries the nonce hash at a `rand`.",
+     [("Dahlias/Second.lean", ["liftQ"]),
+      ("Dahlias/NonceGenCounter.lean",
+       ["tally", "liftUpd", "askList", "SignedQ", "trackOf", "signedList", "obsUpd", "findKey",
+        "forgeTail", "keyForger", "nonceGenCtrExperiment", "nonceGenCtrAdvantage",
+        "nonceGenCtr_advantage", "lazyBound", "nonceGenCtrExperimentH", "nonceGenCtrAdvantageH",
+        "nonceGenCtr_unforgeable_fin"]),
+      ("Dahlias/BytesSecurity.lean",
+       ["xor32", "ser32", "maskXor", "unmaskXor", "unmaskXor_maskXor",
+        "bytes_nonceGenCtr_unforgeable_256"])]),
     ("Binding",
      "`Dahlias/Binding.lean`, and `Dahlias/BindingHashed.lean` for the oracle with hash outputs.",
      [("Dahlias/QueryRun.lean", ["QTree", "eval", "flog", "fresh"]),

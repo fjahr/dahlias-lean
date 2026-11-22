@@ -3,7 +3,7 @@ import Dahlias.BytesCorrectness
 import Dahlias.Proofs.Game
 import Dahlias.Hashed
 import Dahlias.BindingHashed
-import Dahlias.NonceGenLazy
+import Dahlias.NonceGenCounter
 
 /-!
 # The security theorems for 32-byte keys and messages
@@ -27,6 +27,8 @@ is at most `2^-127` for every oracle value the game reads (`hash_gap`).
 all of it at once: the 32-byte instance, the 256-bit challenge hash and the
 nonces of `NonceGen`, with and without its `sk` argument. The forger, the
 reduction and the collision finder in them sample all random oracles lazily.
+`bytes_nonceGenCtr_unforgeable_256` is the statement for `NonceGen` with the
+secret key and a counter in place of `rand'`.
 -/
 
 set_option linter.unusedSectionVars false
@@ -200,6 +202,95 @@ theorem bytes_nonceGen_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fintyp
         (qs : ℝ) ^ 2 / ((2 ^ 256 : ℕ) : ℝ) + qs * (qn / ((2 ^ 256 : ℕ) : ℝ)) +
         (2 * qs : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - (n - 1)) / ((2 ^ 256 : ℕ) : ℝ)) := by
   have h := nonceGen_unforgeable_fin secp256k1X nonceCoef32 N qs e₀ n_lt.le A hN qh qn hA hH
+  rw [card_B32] at h
+  exact h
+
+/-! ## A counter in place of `rand'` -/
+
+theorem zipXor_cancel_right : ∀ l₁ l₂ : List UInt8, l₁.length = l₂.length →
+    List.zipWith (· ^^^ ·) (List.zipWith (· ^^^ ·) l₁ l₂) l₂ = l₁
+  | [], [], _ => rfl
+  | a :: l₁, b :: l₂, h => by
+    simp only [List.zipWith_cons_cons, List.cons.injEq]
+    exact ⟨by rw [UInt8.xor_assoc, UInt8.xor_self, UInt8.xor_zero],
+      zipXor_cancel_right l₁ l₂ (by simpa using h)⟩
+  | [], _ :: _, h => by simp at h
+  | _ :: _, [], h => by simp at h
+
+theorem zipXor_cancel_left : ∀ l₁ l₂ : List UInt8, l₁.length = l₂.length →
+    List.zipWith (· ^^^ ·) l₁ (List.zipWith (· ^^^ ·) l₁ l₂) = l₂
+  | [], [], _ => rfl
+  | a :: l₁, b :: l₂, h => by
+    simp only [List.zipWith_cons_cons, List.cons.injEq]
+    exact ⟨by rw [← UInt8.xor_assoc, UInt8.xor_self, UInt8.zero_xor],
+      zipXor_cancel_left l₁ l₂ (by simpa using h)⟩
+  | [], _ :: _, h => by simp at h
+  | _ :: _, [], h => by simp at h
+
+/-- The byte-wise xor of two 32-byte arrays. -/
+def xor32 (a b : B32) : B32 :=
+  ⟨List.zipWith (· ^^^ ·) a.1 b.1, by rw [List.length_zipWith, a.2, b.2, min_self]⟩
+
+/-- `bytes(x)` as a 32-byte array. -/
+def ser32 (x : ZMod n) : B32 := ⟨serScalar x, length_bytes32 _⟩
+
+/-- **The `rand` of `NonceGen` with its `sk` argument**:
+`bytes(x) xor hash_BIP0459/aux(rand')`, as a bijection on the values of the
+aux hash. -/
+def maskXor (x : (ZMod n)ˣ) : B32 ≃ B32 where
+  toFun a := xor32 (ser32 (x : ZMod n)) a
+  invFun a := xor32 (ser32 (x : ZMod n)) a
+  left_inv a := Subtype.ext (zipXor_cancel_left _ _ ((ser32 (x : ZMod n)).2.trans a.2.symm))
+  right_inv a := Subtype.ext (zipXor_cancel_left _ _ ((ser32 (x : ZMod n)).2.trans a.2.symm))
+
+/-- The secret key from a `rand` and the value of the aux hash. -/
+def unmaskXor (r a : B32) : Option (ZMod n)ˣ :=
+  (scalar (xor32 r a).1).bind fun s => if h : s = 0 then none else some (Units.mk0 s h)
+
+/-- A `rand` and the value of the aux hash give the secret key. -/
+theorem unmaskXor_maskXor (x : (ZMod n)ˣ) (a : B32) : unmaskXor (maskXor x a) a = some x := by
+  have hc : (xor32 (maskXor x a) a).1 = serScalar (x : ZMod n) :=
+    zipXor_cancel_right _ _ ((ser32 (x : ZMod n)).2.trans a.2.symm)
+  unfold unmaskXor
+  rw [hc, scalar_serScalar]
+  simp [x.ne_zero]
+
+set_option synthInstance.maxSize 4000 in
+/-- **BIP 459 with 32-byte keys and messages, 256-bit hashes and `NonceGen`
+with a counter in place of `rand'` is unforgeable under AOMDL.** The signer
+runs `NonceGen` with its secret key and, for slot `k`, the public 32-byte
+value `ctr k` in place of a random value, as
+`secp256k1_fullagg_nonce_gen_counter` does. The values `ctr k` are distinct.
+`rand` is `bytes(x) xor hash_BIP0459/aux(ctr k)`. `hash_BIP0459/sig`,
+`hash_BIP0459/nonce` and `hash_BIP0459/aux` are random oracles, the first two
+with 256-bit outputs that are reduced modulo `n`. The nonce coefficient hash
+is the BIP's.
+
+The bound has the terms of `unforgeable_sqrt_lazy_both` twice: for the
+adversary, and for the forger `keyForger`, which finds the secret key when the
+adversary queries the nonce hash at a `rand`. `msgs` are any `qs + 1` distinct
+messages. -/
+theorem bytes_nonceGenCtr_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fintype Ex]
+    [DecidableEq Ex] (N qs : ℕ)
+    (A : SkAdversaryH n N Point B32 B32 B32 B32 Ex (Fin (2 ^ 256)) (Fin (2 ^ 256)) Coins)
+    (e₀ : Ex) (ctr : Fin qs → B32) (hctr : Function.Injective ctr) (msgs : Fin (qs + 1) → B32)
+    (hmsgs : Function.Injective msgs) (hN0 : 0 < N) (hN : N < n) (qh qn qa : ℕ)
+    (hA : ∀ c P, NBound (A c P) qa)
+    (hG : ∀ c P (Aux : B32 → B32), NBound (answerG Aux (A c P)) qn)
+    (hH : ∀ c P G (Aux : B32 → B32),
+      HashBound (answerG (fun _ : Ex => ()) (answerG G (answerG Aux (A c P)))) qh) :
+    nonceGenCtrAdvantageH secp256k1X nonceCoef32 N qs ctr maskXor e₀ (redFin (2 ^ 256))
+        (redFin (2 ^ 256)) A ≤
+      lazyBound secp256k1X nonceCoef32 N qs qh
+          (withStream N qn (withAuxStream N qa (liftHashSk N (liftFin n_lt.le) A))) +
+        lazyBound secp256k1X nonceCoef32 N qs (qh + 1)
+          (withStream N qn (withAuxStream N (qa + qs)
+            (keyForger secp256k1X N qs unmaskXor msgs ctr (liftHashSk N (liftFin n_lt.le) A)))) +
+        (qh + qs + N : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ)) +
+        (qs : ℝ) ^ 2 / ((2 ^ 256 : ℕ) : ℝ) +
+        2 * ((2 * qs : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - (n - 1)) / ((2 ^ 256 : ℕ) : ℝ))) := by
+  have h := nonceGenCtr_unforgeable_fin secp256k1X nonceCoef32 N qs unmaskXor msgs ctr maskXor e₀
+    n_lt.le A hctr unmaskXor_maskXor hmsgs hN0 hN qh qn qa hA hG hH
   rw [card_B32] at h
   exact h
 
