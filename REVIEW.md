@@ -11,7 +11,7 @@ The definitions and statements below decide whether the results mean anything. [
 3. `Dahlias/Alg.lean`, the definitions `Alg`, `bind` and `run`, and `Dahlias/Prob.lean`, the definition `prob`.
 4. `Dahlias/Unforgeability.lean`, the statements of `unforgeable` and `unforgeable_sqrt` and the definitions `collisionAdvantage` and `NoSingle`.
 5. `Dahlias/Hashed.lean`, the game in which the random oracle returns hash outputs, and the statement of `unforgeable_sqrt_fin`.
-6. `Dahlias/NonceGen.lean` and `Dahlias/NonceGenSk.lean`, the games with nonces derived as in `NonceGen`, and the statements. Then `Dahlias/NonceGenHashed.lean`, the games that also have the hash outputs of step 5, and the statements of `bytes_nonceGenSk_unforgeable_256` and `bytes_nonceGen_unforgeable_256` in `Dahlias/BytesSecurity.lean`.
+6. `Dahlias/NonceGen.lean` and `Dahlias/NonceGenSk.lean`, the games with nonces derived as in `NonceGen`, and the statements. Then `Dahlias/NonceGenHashed.lean`, the games that also have the hash outputs of step 5, the forgers `withStream` and `withAuxStream` in `Dahlias/NonceGenLazy.lean`, and the statements of `bytes_nonceGenSk_unforgeable_256` and `bytes_nonceGen_unforgeable_256` in `Dahlias/BytesSecurity.lean`.
 7. `Dahlias/Binding.lean`, the header, `bindExperiment` and the statement of `strongly_binding`.
 8. `Dahlias/Proofs/Reduction.lean`, all definitions: `reduction`, `collider` and what they call. The theorems measure these two algorithms, so their bodies are part of the statement. Then `reductionLazy` in `Dahlias/LazyReduction.lean` and `colliderLazy` in `Dahlias/LazyCollider.lean`.
 9. `Dahlias/Bytes.lean` and the statements of `Dahlias/Encoding.lean`, for BIP 459's bytes.
@@ -32,7 +32,7 @@ The model was compared with BIP 459 at bitcoin/bips commit [`f3d1668`](https://g
 
 **Does the reduction cheat?** `reduction` has the type `OmdlAdversary`: it is an oracle algorithm for the AOMDL game and gets nothing else. It wins only if it makes fewer discrete logarithm queries than it received challenges, so the query count is part of the statement. The type does not rule out an algorithm that finds the logarithms by search without asking, and there is no cost model, so the body has to be read. `reduction` asks for its challenges and calls `reductionBody`. That runs the forger with `simChallenger` answering its queries, which asks at most one discrete logarithm query for a signing query (`simSign`). It takes the fork point from the forger's output, runs the forger a second time with the table changed at that point, asks at most two more queries for every session (`solveSessions`) and computes the secret key from the two forgeries with one division (`extractX`). Nothing in these definitions goes through scalars or points in search of one. `collider` is a function of a sample. It holds the secret key, runs the game twice (`gameRecs`) and goes through the pairs of session records of the two runs for a collision. It is marked noncomputable only because it decides classically whether two hash inputs are equal.
 
-**What is random?** The secret key and the nonces are uniform nonzero scalars. In `unforgeable` and `unforgeable_sqrt` the challenge hash is a uniform table of scalars, on inputs with lists of at most `N` entries. `forgeAdvantage_eq_lazy` proves that the game has the same advantage when the oracle answers every new query with the next of `qh + qs + N` uniform scalars. The coins of `reduction` contain a whole table. `reductionLazy` takes `2·(qh + qs) + 1` scalars instead and wins the AOMDL game with the same probability (`omdlAdvantage_reduction_eq_lazy`). The sample of `collider` has a whole table as well, and `colliderLazy` finds a collision as often with `2·(qh + qs)` scalars (`collisionAdvantage_eq_lazy`). `unforgeable_sqrt_lazy_both` is the theorem with these two algorithms. The framework has no cost model, so there is no statement about running time.
+**What is random?** The secret key and the nonces are uniform nonzero scalars. In `unforgeable` and `unforgeable_sqrt` the challenge hash is a uniform table of scalars, on inputs with lists of at most `N` entries. `forgeAdvantage_eq_lazy` proves that the game has the same advantage when the oracle answers every new query with the next of `qh + qs + N` uniform scalars. The coins of `reduction` contain a whole table. `reductionLazy` takes `2·(qh + qs) + 1` scalars instead and wins the AOMDL game with the same probability (`omdlAdvantage_reduction_eq_lazy`). The sample of `collider` has a whole table as well, and `colliderLazy` finds a collision as often with `2·(qh + qs)` scalars (`collisionAdvantage_eq_lazy`). `unforgeable_sqrt_lazy_both` is the theorem with these two algorithms. In `nonceGen_unforgeable` the forger that the reduction runs has a whole table of `hash_BIP0459/nonce` in its coins (`withTable`). `nonceGen_unforgeable_lazy` and `nonceGenSk_unforgeable_lazy` are the statements for forgers that answer the queries to `hash_BIP0459/nonce` and `hash_BIP0459/aux` from `qn` and `qa` values in their coins, with `reductionLazy` and `colliderLazy`. The theorems for 32-byte values are stated this way. The framework has no cost model, so there is no statement about running time.
 
 **How is the challenge hash reduced modulo `n`?** BIP 459 computes `c = int(hash(…)) mod n` from a 256-bit hash. In the game of `Dahlias/Hashed.lean` the oracle returns a uniform element of a type `H` of hash outputs. The adversary sees the outputs, and `Sign` and `Verify` turn them into scalars with `red`. `forgeAdvantageH_le` reduces this game to the one with scalar answers. The game reads at most `qh + qs + N` oracle values, and each is outside a fixed set of `n` outputs, one for every scalar, with probability `(|H| - n) / |H|`. For `H = {0, …, 2^256 - 1}` and `red h = h mod n` that is at most `2^-127` (`hash_gap`), and `bytes_unforgeable_256` is the theorem for secp256k1. `Dahlias/BindingHashed.lean` does the same for strong binding, where the game reads at most `qh + 2⋅N` oracle values (`strongly_binding_fin`, `bytes_strongly_binding_256`).
 
@@ -81,7 +81,6 @@ What BIP 459 says about correctness and security, and the theorem for it.
 - No theorem bounds running time. `reduction` runs the forger twice, which is visible in its definition. `reductionLazy` and `colliderLazy` show that neither algorithm of the theorem needs a table of exponential size.
 - The game is for lists of at most `N` entries, with `N < n`.
 - The nonces of the game are uniform. `nonceGen_unforgeable` and `nonceGenSk_advantage` derive them as `NonceGen` does, from a uniform `rand'` and with the hash functions of `NonceGen` as random oracles. They say nothing about a `rand'` that is not uniform, which is the case the optional arguments of `NonceGen` exist for.
-- In the theorems with `NonceGen` the bound is for the forger `withTable A`, which has a whole table of `hash_BIP0459/nonce` in its coins, and with the `sk` argument one of `hash_BIP0459/aux` as well. No theorem states them with these tables sampled lazily.
 - No theorem states a game in which the adversary sends bytes. In `bytes_unforgeable_256` public keys and messages are 32-byte arrays and the hashes are BIP 459's, but the adversary sends points for the nonces and scalars for the tweaks. `sign_bytes` and `verify_bytes` connect that instance to the functions on bytes.
 - `hash_BIP0459/sig` is a random oracle on structured inputs with lists of at most `N` entries. SHA-256 on the bytes is a function of those inputs (`sigInput_injective`), and modelling it as a random function is the assumption.
 - A single-party signature of the game is for a list of keys that are all tweaks `α + β⋅x`, `β ≠ 0`, of the one honest key. The theorem does not cover a party that signs alone for several unrelated secret keys.
@@ -1191,7 +1190,7 @@ theorem nonceGenSk_advantage (g : (ZMod n)ˣ → W) (hg : Injective g) (hρ : �
 
 ### `NonceGen`, 256-bit hashes and 32-byte values together
 
-`Dahlias/NonceGenHashed.lean` and `Dahlias/BytesSecurity.lean`. One game has the nonces of `NonceGen` and a challenge hash whose outputs the adversary sees and the signer and the verifier reduce.
+`Dahlias/NonceGenHashed.lean`, `Dahlias/NonceGenLazy.lean` and `Dahlias/BytesSecurity.lean`. One game has the nonces of `NonceGen` and a challenge hash whose outputs the adversary sees and the signer and the verifier reduce. The forgers `withStream` and `withAuxStream` answer the queries to the hash functions of `NonceGen` from values in their coins.
 
 ```lean
 /-- The algorithm that gets answers in `R'` and continues as `t` does on their
@@ -1315,17 +1314,49 @@ def liftHashSk (g : ZMod n → H) (A : SkAdversaryH n N E X M Rnd Rp Ex W H Coin
 ```
 
 ```lean
+/-- Answer the queries of `G` lazily from the stream `v`. -/
+def answerLazy (v : ℕ → W) : ℕ → List (D × W) → Alg (Q ⊕ D) (SumR R W) α → Alg Q R α
+  | _, _, .done a => .done a
+  | k, μ, .ask (.inl q) f => .ask q fun r => answerLazy v k μ (f r)
+  | k, μ, .ask (.inr z) f =>
+    match memo μ z with
+    | some s => answerLazy v k μ (f s)
+    | none => answerLazy v (k + 1) (μ ++ [(z, v k)]) (f (v k))
+```
+
+```lean
+/-- The adversary for the game with uniform nonces that answers the queries
+to `hash_BIP0459/nonce` lazily, from `q` values in its coins, and drops the
+`extra_in`. -/
+def withStream [DecidableEq Rnd] [DecidableEq Ex] [Inhabited W] (q : ℕ)
+    (A : NAdversary n N E X M Rnd Ex W Coins) : Adversary n N E X M (Coins × (Fin q → W)) :=
+  fun c P => answerG (fun _ : Ex => ()) (answerLazy (stream c.2) 0 [] (A c.1 P))
+```
+
+```lean
+/-- The adversary for the game of `Dahlias.NonceGen` that answers the queries
+to `hash_BIP0459/aux` lazily, from `q` values in its coins. -/
+def withAuxStream [DecidableEq Rp] [Inhabited Rnd] (q : ℕ)
+    (A : SkAdversary n N E X M Rnd Rp Ex W Coins) :
+    NAdversary n N E X M Rnd Ex W (Coins × (Fin q → Rnd)) :=
+  fun c P => answerLazy (stream c.2) 0 [] (A c.1 P)
+```
+
+```lean
 /-- **BIP 459's `NonceGen` without its `sk` argument and the challenge hash**:
-`m`-valued random oracles reduced modulo `n`, for `m = 2²⁵⁶`. -/
-theorem nonceGen_unforgeable_fin {m : ℕ} (hm : n ≤ m)
+`m`-valued random oracles reduced modulo `n`, for `m = 2²⁵⁶`. The forger, the
+reduction and the collision finder sample all random oracles lazily. -/
+theorem nonceGen_unforgeable_fin [Nonempty Rnd] {m : ℕ} [NeZero m] (hm : n ≤ m)
     (A : NAdversaryH n N E X M Rnd Ex (Fin m) (Fin m) Coins) (hN : N < n) (qh qn : ℕ)
     (hA : ∀ c P, NBound (A c P) qn)
     (hH : ∀ c P G, HashBound (answerG (fun _ : Ex => ()) (answerG G (A c P))) qh) :
     nonceGenAdvantageH C nonceCoef N qs (redFin m) A (redFin m) e₀ ≤
       Real.sqrt ((qh + qs + 1 : ℕ) *
           (omdlAdvantage C (2 * qs + 1)
-              (reduction C nonceCoef N qs (withTable N (liftHashN N (liftFin hm) A))) +
-            collisionAdvantage C nonceCoef N qs (withTable N (liftHashN N (liftFin hm) A)))) +
+              (reductionLazy C nonceCoef N qs (withStream N qn (liftHashN N (liftFin hm) A))
+                (2 * (qh + qs) + 1)) +
+            collisionAdvantageLazy C nonceCoef N qs
+              (withStream N qn (liftHashN N (liftFin hm) A)) (2 * (qh + qs)))) +
         (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ) +
         (qh + qs + N : ℕ) * ((m - n : ℝ) / m) +
         (qs : ℝ) ^ 2 / Fintype.card Rnd + qs * (qn / Fintype.card Rnd) +
@@ -1334,20 +1365,23 @@ theorem nonceGen_unforgeable_fin {m : ℕ} (hm : n ≤ m)
 
 ```lean
 /-- **BIP 459's `NonceGen` with its `sk` argument and the challenge hash**:
-`m`-valued random oracles reduced modulo `n`, for `m = 2²⁵⁶`. -/
-theorem nonceGenSk_unforgeable_fin {m : ℕ} (hm : n ≤ m)
-    (A : SkAdversaryH n N E X M Rnd Rp Ex (Fin m) (Fin m) Coins) (hN : N < n) (qh qn qa : ℕ)
-    (hA : ∀ c P, NBound (A c P) qa)
+`m`-valued random oracles reduced modulo `n`, for `m = 2²⁵⁶`. The forger, the
+reduction and the collision finder sample all random oracles lazily. -/
+theorem nonceGenSk_unforgeable_fin (mask : (ZMod n)ˣ → Rnd ≃ Rnd) [Nonempty Rp] {m : ℕ}
+    [NeZero m] (hm : n ≤ m) (A : SkAdversaryH n N E X M Rnd Rp Ex (Fin m) (Fin m) Coins)
+    (hN : N < n) (qh qn qa : ℕ) (hA : ∀ c P, NBound (A c P) qa)
     (hG : ∀ c P (Aux : Rp → Rnd), NBound (answerG Aux (A c P)) qn)
     (hH : ∀ c P G (Aux : Rp → Rnd),
       HashBound (answerG (fun _ : Ex => ()) (answerG G (answerG Aux (A c P)))) qh) :
     nonceGenSkAdvantageH C nonceCoef N qs (redFin m) A (redFin m) e₀ mask ≤
       Real.sqrt ((qh + qs + 1 : ℕ) *
           (omdlAdvantage C (2 * qs + 1)
-              (reduction C nonceCoef N qs
-                (withTable N (withAux N (liftHashSk N (liftFin hm) A)))) +
-            collisionAdvantage C nonceCoef N qs
-              (withTable N (withAux N (liftHashSk N (liftFin hm) A))))) +
+              (reductionLazy C nonceCoef N qs
+                (withStream N qn (withAuxStream N qa (liftHashSk N (liftFin hm) A)))
+                (2 * (qh + qs) + 1)) +
+            collisionAdvantageLazy C nonceCoef N qs
+              (withStream N qn (withAuxStream N qa (liftHashSk N (liftFin hm) A)))
+              (2 * (qh + qs)))) +
         (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ) +
         (qh + qs + N : ℕ) * ((m - n : ℝ) / m) +
         (qs : ℝ) ^ 2 / Fintype.card Rnd + qs * (qn / Fintype.card Rnd) +
@@ -1370,7 +1404,8 @@ that are reduced modulo `n`. The nonce coefficient hash is the BIP's.
 
 The adversary makes at most `qh`, `qn` and `qa` queries to the three oracles
 and opens at most `qs` sessions. `extra_in` is a value of any finite type
-`Ex`. -/
+`Ex`. The forger `withStream (withAuxStream …)`, the reduction and the
+collision finder sample all random oracles lazily. -/
 theorem bytes_nonceGenSk_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fintype Ex]
     [DecidableEq Ex] (N qs : ℕ)
     (A : SkAdversaryH n N Point B32 B32 B32 B32 Ex (Fin (2 ^ 256)) (Fin (2 ^ 256)) Coins)
@@ -1383,10 +1418,12 @@ theorem bytes_nonceGenSk_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fint
         mask ≤
       Real.sqrt ((qh + qs + 1 : ℕ) *
         (omdlAdvantage secp256k1X (2 * qs + 1)
-            (reduction secp256k1X nonceCoef32 N qs
-              (withTable N (withAux N (liftHashSk N (liftFin n_lt.le) A)))) +
-          collisionAdvantage secp256k1X nonceCoef32 N qs
-            (withTable N (withAux N (liftHashSk N (liftFin n_lt.le) A))))) +
+            (reductionLazy secp256k1X nonceCoef32 N qs
+              (withStream N qn (withAuxStream N qa (liftHashSk N (liftFin n_lt.le) A)))
+              (2 * (qh + qs) + 1)) +
+          collisionAdvantageLazy secp256k1X nonceCoef32 N qs
+            (withStream N qn (withAuxStream N qa (liftHashSk N (liftFin n_lt.le) A)))
+            (2 * (qh + qs)))) +
         (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ) +
         (qh + qs + N : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ)) +
         (qs : ℝ) ^ 2 / ((2 ^ 256 : ℕ) : ℝ) + qs * (qn / ((2 ^ 256 : ℕ) : ℝ)) +
@@ -1399,7 +1436,8 @@ theorem bytes_nonceGenSk_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fint
 argument and 256-bit hashes is unforgeable under AOMDL.** The `rand` of
 `NonceGen` is a uniform 32-byte value. `hash_BIP0459/sig` and
 `hash_BIP0459/nonce` are random oracles with 256-bit outputs that are reduced
-modulo `n`. The nonce coefficient hash is the BIP's. -/
+modulo `n`. The nonce coefficient hash is the BIP's. The forger `withStream`,
+the reduction and the collision finder sample the random oracles lazily. -/
 theorem bytes_nonceGen_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fintype Ex]
     [DecidableEq Ex] (N qs : ℕ)
     (A : NAdversaryH n N Point B32 B32 B32 Ex (Fin (2 ^ 256)) (Fin (2 ^ 256)) Coins) (e₀ : Ex)
@@ -1408,10 +1446,10 @@ theorem bytes_nonceGen_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fintyp
     nonceGenAdvantageH secp256k1X nonceCoef32 N qs (redFin (2 ^ 256)) A (redFin (2 ^ 256)) e₀ ≤
       Real.sqrt ((qh + qs + 1 : ℕ) *
         (omdlAdvantage secp256k1X (2 * qs + 1)
-            (reduction secp256k1X nonceCoef32 N qs
-              (withTable N (liftHashN N (liftFin n_lt.le) A))) +
-          collisionAdvantage secp256k1X nonceCoef32 N qs
-            (withTable N (liftHashN N (liftFin n_lt.le) A)))) +
+            (reductionLazy secp256k1X nonceCoef32 N qs
+              (withStream N qn (liftHashN N (liftFin n_lt.le) A)) (2 * (qh + qs) + 1)) +
+          collisionAdvantageLazy secp256k1X nonceCoef32 N qs
+            (withStream N qn (liftHashN N (liftFin n_lt.le) A)) (2 * (qh + qs)))) +
         (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ) +
         (qh + qs + N : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ)) +
         (qs : ℝ) ^ 2 / ((2 ^ 256 : ℕ) : ℝ) + qs * (qn / ((2 ^ 256 : ℕ) : ℝ)) +
@@ -1800,19 +1838,20 @@ The definitions of the project that the statements of the results in `Dahlias/Su
 - `Dahlias/Bytes.lean`: `Bytes.cbytes`, `Bytes.cpoint`, `Bytes.hashes`, `Bytes.is32`, `Bytes.nonceAgg`, `Bytes.nonceGen`, `Bytes.parseNonce`, `Bytes.partialSigVerify`, `Bytes.scalar`, `Bytes.scalarWrap`, `Bytes.serNonce`, `Bytes.serScalar`, `Bytes.sigAgg`, `Bytes.sign`, `Bytes.specOps`, `Bytes.tweakPKOfSK`, `Bytes.tweakSK`, `Bytes.verify`, `Bytes.wellFormed`, `Bytes.xbytes`
 - `Dahlias/BytesCorrectness.lean`: `Bytes.pkOf`, `Bytes.pubnonceOf`, `Bytes.secnonceOf`, `Bytes.skOf`
 - `Dahlias/BytesCurve.lean`: `Bytes.secp256k1B`
-- `Dahlias/BytesSecurity.lean`: `Security.Agree`, `Security.B32`, `Security.instDecidableEqB32`, `Security.instFintypeB32`, `Security.nonceCoef32`, `Security.secp256k1X`, `Security.vals`
+- `Dahlias/BytesSecurity.lean`: `Security.Agree`, `Security.B32`, `Security.instDecidableEqB32`, `Security.instFintypeB32`, `Security.instInhabitedB32`, `Security.nonceCoef32`, `Security.secp256k1X`, `Security.vals`
 - `Dahlias/Correctness.lean`: `Signer`, `Signer.pkm`, `Signer.pubnonce`
 - `Dahlias/Encoding.lean`: `Bytes.Items32`, `Bytes.Pairs32`, `Bytes.nonceCoefInput`, `Bytes.sigInput`, `Security.nonceCoefBytes`
 - `Dahlias/Examples.lean`: `Security.guesser`
 - `Dahlias/Fork.lean`: `QTree.Accepts`, `QTree.Forks`
 - `Dahlias/Hashed.lean`: `Security.AdvRH`, `Security.AdversaryH`, `Security.ForgeSampleH`, `Security.challengerH`, `Security.forgeAdvantageH`, `Security.forgeExperimentH`, `Security.liftFin`, `Security.liftHash`, `Security.redFin`
-- `Dahlias/Lazy.lean`: `QTree.evalLazy`, `QTree.mapTree`, `QTree.memo`, `QTree.stream`
+- `Dahlias/Lazy.lean`: `QTree.Ext`, `QTree.evalLazy`, `QTree.mapTree`, `QTree.memo`, `QTree.stream`
 - `Dahlias/LazyCollider.lean`: `Security.LazyColliderSample`, `Security.colliderLazy`, `Security.colliderM`, `Security.collisionAdvantageLazy`, `Security.gameRecsM`, `Security.logChallengerM`, `Security.noOmdl`
 - `Dahlias/LazyGame.lean`: `Security.LazySample`, `Security.lazyExperiment`, `Security.verifyWith`, `Security.winTail`, `Security.winTree`
 - `Dahlias/LazyReduction.lean`: `Security.RM`, `Security.rdFork`, `Security.rdTable`, `Security.readAll`, `Security.reductionBodyM`, `Security.reductionLazy`, `Security.reductionM`, `Security.simChallengerM`
 - `Dahlias/LocalFork.lean`: `LocalFork.accCount`, `LocalFork.forkCount`
 - `Dahlias/NonceGen.lean`: `Security.NAdversary`, `Security.Rest`, `Security.challengerE`, `Security.nonceGenAdvantage`, `Security.nonceGenExperiment`, `Security.noncePt`, `Security.nvOf`, `Security.winE`, `Security.withTable`
 - `Dahlias/NonceGenHashed.lean`: `Security.NAdversaryH`, `Security.RestH`, `Security.SkAdversaryH`, `Security.challengerEH`, `Security.hashAns`, `Security.liftHashN`, `Security.liftHashSk`, `Security.mapAns`, `Security.nonceGenAdvantageH`, `Security.nonceGenExperimentH`, `Security.nonceGenSkAdvantageH`, `Security.nonceGenSkExperimentH`, `Security.sumAns`
+- `Dahlias/NonceGenLazy.lean`: `Security.withAuxStream`, `Security.withStream`
 - `Dahlias/NonceGenSk.lean`: `Security.SkAdversary`, `Security.nonceGenSkAdvantage`, `Security.nonceGenSkExperiment`, `Security.winSk`, `Security.withAux`
 - `Dahlias/OmdlStd.lean`: `Security.chalLogsStd`, `Security.omdlAdvantageStd`, `Security.omdlChallengerStd`, `Security.omdlExperimentStd`
 - `Dahlias/OrderG.lean`: `secp256k1F`

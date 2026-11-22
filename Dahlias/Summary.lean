@@ -30,6 +30,7 @@ import Dahlias.NonceGenSk
 import Dahlias.Binding
 import Dahlias.BindingHashed
 import Dahlias.NonceGenHashed
+import Dahlias.NonceGenLazy
 import Dahlias.PrimeOrder
 import Dahlias.Tweaks
 import Dahlias.Secp256k1
@@ -347,6 +348,26 @@ info: 'Dahlias.Vectors.tweak_vectors' depends on axioms: [propext,
 #guard_msgs in
 #print axioms Dahlias.Security.nonceGenSk_unforgeable_hashed
 
+/-- info: 'Dahlias.Security.lazy_of_tables' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.lazy_of_tables
+
+/-- info: 'Dahlias.Security.forgeAdvantage_withTable_eq_lazy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.forgeAdvantage_withTable_eq_lazy
+
+/-- info: 'Dahlias.Security.forgeAdvantage_withAux_eq_lazy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.forgeAdvantage_withAux_eq_lazy
+
+/-- info: 'Dahlias.Security.nonceGen_unforgeable_lazy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.nonceGen_unforgeable_lazy
+
+/-- info: 'Dahlias.Security.nonceGenSk_unforgeable_lazy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms Dahlias.Security.nonceGenSk_unforgeable_lazy
+
 /-- info: 'Dahlias.Security.nonceGenSk_unforgeable_fin' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Dahlias.Security.nonceGenSk_unforgeable_fin
@@ -515,19 +536,20 @@ Dahlias.BindingHashed: Dahlias.Security.BindAdversaryH, Dahlias.Security.bindExp
 Dahlias.Bytes: Dahlias.Bytes.cbytes, Dahlias.Bytes.cpoint, Dahlias.Bytes.hashes, Dahlias.Bytes.is32, Dahlias.Bytes.nonceAgg, Dahlias.Bytes.nonceGen, Dahlias.Bytes.parseNonce, Dahlias.Bytes.partialSigVerify, Dahlias.Bytes.scalar, Dahlias.Bytes.scalarWrap, Dahlias.Bytes.serNonce, Dahlias.Bytes.serScalar, Dahlias.Bytes.sigAgg, Dahlias.Bytes.sign, Dahlias.Bytes.specOps, Dahlias.Bytes.tweakPKOfSK, Dahlias.Bytes.tweakSK, Dahlias.Bytes.verify, Dahlias.Bytes.wellFormed, Dahlias.Bytes.xbytes
 Dahlias.BytesCorrectness: Dahlias.Bytes.pkOf, Dahlias.Bytes.pubnonceOf, Dahlias.Bytes.secnonceOf, Dahlias.Bytes.skOf
 Dahlias.BytesCurve: Dahlias.Bytes.secp256k1B
-Dahlias.BytesSecurity: Dahlias.Security.Agree, Dahlias.Security.B32, Dahlias.Security.instDecidableEqB32, Dahlias.Security.instFintypeB32, Dahlias.Security.nonceCoef32, Dahlias.Security.secp256k1X, Dahlias.Security.vals
+Dahlias.BytesSecurity: Dahlias.Security.Agree, Dahlias.Security.B32, Dahlias.Security.instDecidableEqB32, Dahlias.Security.instFintypeB32, Dahlias.Security.instInhabitedB32, Dahlias.Security.nonceCoef32, Dahlias.Security.secp256k1X, Dahlias.Security.vals
 Dahlias.Correctness: Dahlias.Signer, Dahlias.Signer.pkm, Dahlias.Signer.pubnonce
 Dahlias.Encoding: Dahlias.Bytes.Items32, Dahlias.Bytes.Pairs32, Dahlias.Bytes.nonceCoefInput, Dahlias.Bytes.sigInput, Dahlias.Security.nonceCoefBytes
 Dahlias.Examples: Dahlias.Security.guesser
 Dahlias.Fork: Dahlias.QTree.Accepts, Dahlias.QTree.Forks
 Dahlias.Hashed: Dahlias.Security.AdvRH, Dahlias.Security.AdversaryH, Dahlias.Security.ForgeSampleH, Dahlias.Security.challengerH, Dahlias.Security.forgeAdvantageH, Dahlias.Security.forgeExperimentH, Dahlias.Security.liftFin, Dahlias.Security.liftHash, Dahlias.Security.redFin
-Dahlias.Lazy: Dahlias.QTree.evalLazy, Dahlias.QTree.mapTree, Dahlias.QTree.memo, Dahlias.QTree.stream
+Dahlias.Lazy: Dahlias.QTree.Ext, Dahlias.QTree.evalLazy, Dahlias.QTree.mapTree, Dahlias.QTree.memo, Dahlias.QTree.stream
 Dahlias.LazyCollider: Dahlias.Security.LazyColliderSample, Dahlias.Security.colliderLazy, Dahlias.Security.colliderM, Dahlias.Security.collisionAdvantageLazy, Dahlias.Security.gameRecsM, Dahlias.Security.logChallengerM, Dahlias.Security.noOmdl
 Dahlias.LazyGame: Dahlias.Security.LazySample, Dahlias.Security.lazyExperiment, Dahlias.Security.verifyWith, Dahlias.Security.winTail, Dahlias.Security.winTree
 Dahlias.LazyReduction: Dahlias.Security.RM, Dahlias.Security.rdFork, Dahlias.Security.rdTable, Dahlias.Security.readAll, Dahlias.Security.reductionBodyM, Dahlias.Security.reductionLazy, Dahlias.Security.reductionM, Dahlias.Security.simChallengerM
 Dahlias.LocalFork: Dahlias.LocalFork.accCount, Dahlias.LocalFork.forkCount
 Dahlias.NonceGen: Dahlias.Security.NAdversary, Dahlias.Security.Rest, Dahlias.Security.challengerE, Dahlias.Security.nonceGenAdvantage, Dahlias.Security.nonceGenExperiment, Dahlias.Security.noncePt, Dahlias.Security.nvOf, Dahlias.Security.winE, Dahlias.Security.withTable
 Dahlias.NonceGenHashed: Dahlias.Security.NAdversaryH, Dahlias.Security.RestH, Dahlias.Security.SkAdversaryH, Dahlias.Security.challengerEH, Dahlias.Security.hashAns, Dahlias.Security.liftHashN, Dahlias.Security.liftHashSk, Dahlias.Security.mapAns, Dahlias.Security.nonceGenAdvantageH, Dahlias.Security.nonceGenExperimentH, Dahlias.Security.nonceGenSkAdvantageH, Dahlias.Security.nonceGenSkExperimentH, Dahlias.Security.sumAns
+Dahlias.NonceGenLazy: Dahlias.Security.withAuxStream, Dahlias.Security.withStream
 Dahlias.NonceGenSk: Dahlias.Security.SkAdversary, Dahlias.Security.nonceGenSkAdvantage, Dahlias.Security.nonceGenSkExperiment, Dahlias.Security.winSk, Dahlias.Security.withAux
 Dahlias.OmdlStd: Dahlias.Security.chalLogsStd, Dahlias.Security.omdlAdvantageStd, Dahlias.Security.omdlChallengerStd, Dahlias.Security.omdlExperimentStd
 Dahlias.OrderG: Dahlias.secp256k1F
@@ -548,4 +570,4 @@ Dahlias.Proofs.Game: Dahlias.Security.H₀, Dahlias.Security.forkPoint, Dahlias.
 Dahlias.Proofs.Reduction: Dahlias.Security.CloseRec, Dahlias.Security.IsCollision, Dahlias.Security.KeyTerm, Dahlias.Security.SimState, Dahlias.Security.coefVec, Dahlias.Security.collider, Dahlias.Security.dlogPoint, Dahlias.Security.dlogRep, Dahlias.Security.evenLift, Dahlias.Security.extractX, Dahlias.Security.forkPointPub, Dahlias.Security.gameRecs, Dahlias.Security.getChals, Dahlias.Security.keyPoint, Dahlias.Security.keySign, Dahlias.Security.logChallenger, Dahlias.Security.ncHash, Dahlias.Security.reduction, Dahlias.Security.reductionBody, Dahlias.Security.signPrePub, Dahlias.Security.simChallenger, Dahlias.Security.simSign, Dahlias.Security.singleKeysPub, Dahlias.Security.singleTerms, Dahlias.Security.solveSession, Dahlias.Security.solveSessions, Dahlias.Security.CloseRec.ncIn, Dahlias.Security.CloseRec.point, Dahlias.Security.CloseRec.w, Dahlias.Security.Tweak.pk
 -/
 #guard_msgs in
-#surface Dahlias.verify_honest Dahlias.verify_sigAgg_of_partialSigVerify Dahlias.partialSigVerify_sign Dahlias.tweakPK_mulG Dahlias.partialSigVerify_iff Dahlias.partialSigVerify_unique Dahlias.partialSigVerify_iff_eq_sign Dahlias.exists_partialSigVerify_eq_false Dahlias.partialSigVerify_of_verify Dahlias.verify_eq_false_of_one_bad Dahlias.verify_signSingle Dahlias.verify_unique Dahlias.sigAgg_eq_signSingle Dahlias.Security.challenger_single Dahlias.Security.forgeAdvantage_le_derived Dahlias.OrderG.n_smul_G Dahlias.secp256k1F Dahlias.Bytes.verify_honest Dahlias.Vectors.nonceGen_vectors Dahlias.Vectors.nonceAgg_vectors Dahlias.Vectors.sign_vectors Dahlias.Vectors.signError_vectors Dahlias.Vectors.partialSigVerify_vectors Dahlias.Vectors.verify_vectors Dahlias.Vectors.tweak_vectors Dahlias.LocalFork.localFork_prob Dahlias.QTree.localFork_prob Dahlias.Security.unforgeable Dahlias.Security.unforgeable_sqrt Dahlias.Security.secp256k1_unforgeable Dahlias.Security.tweakSK_affine Dahlias.Security.guesser_advantage_pos Dahlias.Security.omdlAdvantage_mul_le_std Dahlias.Security.omdlAdvantage_le_std Dahlias.Security.unforgeable_sqrt_std Dahlias.Security.grinder_hashBound Dahlias.Security.grinder_advantage Dahlias.Security.grinder_advantage_ge Dahlias.QTree.prob_eval_eq_lazy Dahlias.Security.forgeAdvantage_eq_lazy Dahlias.Security.omdlAdvantage_reduction_eq_lazy Dahlias.Security.unforgeable_sqrt_lazy Dahlias.Security.collisionAdvantage_eq_lazy Dahlias.Security.unforgeable_sqrt_lazy_both Dahlias.Security.forgeAdvantageH_le Dahlias.Security.unforgeable_sqrt_hashed Dahlias.Security.unforgeable_sqrt_fin Dahlias.Security.nonceGen_advantage Dahlias.Security.nonceGen_unforgeable Dahlias.Security.nonceGen_advantage_fin Dahlias.Security.nonceGenSk_le Dahlias.Security.nonceGenSk_advantage Dahlias.Security.nonceGenAdvantageH_le Dahlias.Security.nonceGen_unforgeable_hashed Dahlias.Security.nonceGen_unforgeable_fin Dahlias.Security.nonceGenSkAdvantageH_le Dahlias.Security.nonceGenSk_unforgeable_hashed Dahlias.Security.nonceGenSk_unforgeable_fin Dahlias.Security.strongly_binding Dahlias.Security.secp256k1_strongly_binding Dahlias.Security.bindAdvantageH_le Dahlias.Security.strongly_binding_fin Dahlias.secp256k1_primeOrder Dahlias.Security.bytes_unforgeable Dahlias.Security.bytes_unforgeable_256 Dahlias.Security.hash_gap Dahlias.Security.bytes_strongly_binding Dahlias.Security.bytes_strongly_binding_256 Dahlias.Security.card_B32 Dahlias.Security.bytes_nonceGenSk_unforgeable_256 Dahlias.Security.bytes_nonceGen_unforgeable_256 Dahlias.Security.verify_val Dahlias.Security.sign_val Dahlias.Bytes.sigInput_injective Dahlias.Bytes.nonceCoefInput_injective Dahlias.Bytes.cbytes_injective Dahlias.Security.collision_bytes Dahlias.Bytes.cpoint_eq_some_iff Dahlias.Bytes.matchIdxs_bytes Dahlias.Security.sign_bytes Dahlias.Security.verify_bytes Dahlias.Security.evenScalar_of_nonce_reuse Dahlias.Security.evenScalar_of_three_sessions Dahlias.Security.msgSwap_wins Dahlias.Security.ros_bits Dahlias.Security.ros_forgery
+#surface Dahlias.verify_honest Dahlias.verify_sigAgg_of_partialSigVerify Dahlias.partialSigVerify_sign Dahlias.tweakPK_mulG Dahlias.partialSigVerify_iff Dahlias.partialSigVerify_unique Dahlias.partialSigVerify_iff_eq_sign Dahlias.exists_partialSigVerify_eq_false Dahlias.partialSigVerify_of_verify Dahlias.verify_eq_false_of_one_bad Dahlias.verify_signSingle Dahlias.verify_unique Dahlias.sigAgg_eq_signSingle Dahlias.Security.challenger_single Dahlias.Security.forgeAdvantage_le_derived Dahlias.OrderG.n_smul_G Dahlias.secp256k1F Dahlias.Bytes.verify_honest Dahlias.Vectors.nonceGen_vectors Dahlias.Vectors.nonceAgg_vectors Dahlias.Vectors.sign_vectors Dahlias.Vectors.signError_vectors Dahlias.Vectors.partialSigVerify_vectors Dahlias.Vectors.verify_vectors Dahlias.Vectors.tweak_vectors Dahlias.LocalFork.localFork_prob Dahlias.QTree.localFork_prob Dahlias.Security.unforgeable Dahlias.Security.unforgeable_sqrt Dahlias.Security.secp256k1_unforgeable Dahlias.Security.tweakSK_affine Dahlias.Security.guesser_advantage_pos Dahlias.Security.omdlAdvantage_mul_le_std Dahlias.Security.omdlAdvantage_le_std Dahlias.Security.unforgeable_sqrt_std Dahlias.Security.grinder_hashBound Dahlias.Security.grinder_advantage Dahlias.Security.grinder_advantage_ge Dahlias.QTree.prob_eval_eq_lazy Dahlias.Security.forgeAdvantage_eq_lazy Dahlias.Security.omdlAdvantage_reduction_eq_lazy Dahlias.Security.unforgeable_sqrt_lazy Dahlias.Security.collisionAdvantage_eq_lazy Dahlias.Security.unforgeable_sqrt_lazy_both Dahlias.Security.forgeAdvantageH_le Dahlias.Security.unforgeable_sqrt_hashed Dahlias.Security.unforgeable_sqrt_fin Dahlias.Security.nonceGen_advantage Dahlias.Security.nonceGen_unforgeable Dahlias.Security.nonceGen_advantage_fin Dahlias.Security.nonceGenSk_le Dahlias.Security.nonceGenSk_advantage Dahlias.Security.nonceGenAdvantageH_le Dahlias.Security.nonceGen_unforgeable_hashed Dahlias.Security.nonceGen_unforgeable_fin Dahlias.Security.nonceGenSkAdvantageH_le Dahlias.Security.nonceGenSk_unforgeable_hashed Dahlias.Security.lazy_of_tables Dahlias.Security.forgeAdvantage_withTable_eq_lazy Dahlias.Security.forgeAdvantage_withAux_eq_lazy Dahlias.Security.nonceGen_unforgeable_lazy Dahlias.Security.nonceGenSk_unforgeable_lazy Dahlias.Security.nonceGenSk_unforgeable_fin Dahlias.Security.strongly_binding Dahlias.Security.secp256k1_strongly_binding Dahlias.Security.bindAdvantageH_le Dahlias.Security.strongly_binding_fin Dahlias.secp256k1_primeOrder Dahlias.Security.bytes_unforgeable Dahlias.Security.bytes_unforgeable_256 Dahlias.Security.hash_gap Dahlias.Security.bytes_strongly_binding Dahlias.Security.bytes_strongly_binding_256 Dahlias.Security.card_B32 Dahlias.Security.bytes_nonceGenSk_unforgeable_256 Dahlias.Security.bytes_nonceGen_unforgeable_256 Dahlias.Security.verify_val Dahlias.Security.sign_val Dahlias.Bytes.sigInput_injective Dahlias.Bytes.nonceCoefInput_injective Dahlias.Bytes.cbytes_injective Dahlias.Security.collision_bytes Dahlias.Bytes.cpoint_eq_some_iff Dahlias.Bytes.matchIdxs_bytes Dahlias.Security.sign_bytes Dahlias.Security.verify_bytes Dahlias.Security.evenScalar_of_nonce_reuse Dahlias.Security.evenScalar_of_three_sessions Dahlias.Security.msgSwap_wins Dahlias.Security.ros_bits Dahlias.Security.ros_forgery

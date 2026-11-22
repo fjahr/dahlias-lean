@@ -20,9 +20,8 @@ nonces. Here one game has both.
   games at most `(qh + qs + N)⋅(|H| - n) / |H|` more often than the adversary
   `liftHashN g A` or `liftHashSk g A` wins the game with scalar answers.
 * `nonceGen_unforgeable_hashed`, `nonceGenSk_unforgeable_hashed`: the bound of
-  `unforgeable_sqrt` with the error terms of all oracles.
-  `nonceGen_unforgeable_fin` and `nonceGenSk_unforgeable_fin` are the case of
-  hash outputs `0, …, m - 1` reduced modulo `n`.
+  `unforgeable_sqrt` with the error terms of all oracles. `Dahlias.NonceGenLazy`
+  states them with lazily sampled oracles.
 -/
 
 set_option linter.unusedSectionVars false
@@ -431,34 +430,6 @@ theorem nonceGen_unforgeable_hashed (A : NAdversaryH n N E X M Rnd Ex W H Coins)
       exact hashBound_mapAns N g _ qh (hH _ _ _))
   linarith
 
-omit [Fintype H] [DecidableEq H] [Nonempty W] [Fintype W] in
-set_option synthInstance.maxSize 4000 in
-/-- **BIP 459's `NonceGen` without its `sk` argument and the challenge hash**:
-`m`-valued random oracles reduced modulo `n`, for `m = 2²⁵⁶`. -/
-theorem nonceGen_unforgeable_fin {m : ℕ} (hm : n ≤ m)
-    (A : NAdversaryH n N E X M Rnd Ex (Fin m) (Fin m) Coins) (hN : N < n) (qh qn : ℕ)
-    (hA : ∀ c P, NBound (A c P) qn)
-    (hH : ∀ c P G, HashBound (answerG (fun _ : Ex => ()) (answerG G (A c P))) qh) :
-    nonceGenAdvantageH C nonceCoef N qs (redFin m) A (redFin m) e₀ ≤
-      Real.sqrt ((qh + qs + 1 : ℕ) *
-          (omdlAdvantage C (2 * qs + 1)
-              (reduction C nonceCoef N qs (withTable N (liftHashN N (liftFin hm) A))) +
-            collisionAdvantage C nonceCoef N qs (withTable N (liftHashN N (liftFin hm) A)))) +
-        (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ) +
-        (qh + qs + N : ℕ) * ((m - n : ℝ) / m) +
-        (qs : ℝ) ^ 2 / Fintype.card Rnd + qs * (qn / Fintype.card Rnd) +
-        (2 * qs : ℕ) * ((m - (n - 1) : ℝ) / m) := by
-  have hn : 0 < n := (Fact.out : n.Prime).pos
-  have : Nonempty (Fin m) := ⟨⟨0, lt_of_lt_of_le hn hm⟩⟩
-  have h := nonceGen_unforgeable_hashed C nonceCoef N qs (redFin m) e₀ A (redFin m) (liftFin hm)
-    (fun c => ZMod.natCast_zmod_val c)
-    (fun u => ⟨(u : ZMod n).val, lt_of_lt_of_le (ZMod.val_lt _) hm⟩)
-    (fun u u' h => Units.ext (ZMod.val_injective n (Fin.mk.inj h)))
-    (fun u => ZMod.natCast_zmod_val _) hN qh qn hA hH
-  rw [ZMod.card_units_eq_totient, Nat.totient_prime Fact.out, Fintype.card_fin,
-    Nat.cast_sub hn, Nat.cast_one] at h
-  exact h
-
 /-! ### `NonceGen` with the `sk` argument -/
 
 variable (A : SkAdversaryH n N E X M Rnd Rp Ex W H Coins) (ρ : W → ZMod n)
@@ -525,38 +496,5 @@ theorem nonceGenSk_unforgeable_hashed (g : ZMod n → H) (hg : ∀ c, red (g c) 
       rw [answerG_mapAns, answerG_mapAns, answerG_mapAns]
       exact hashBound_mapAns N g _ qh (hH _ _ _ _)
   linarith
-
-omit [Fintype H] [DecidableEq H] [Nonempty W] [Fintype W] in
-set_option synthInstance.maxSize 4000 in
-/-- **BIP 459's `NonceGen` with its `sk` argument and the challenge hash**:
-`m`-valued random oracles reduced modulo `n`, for `m = 2²⁵⁶`. -/
-theorem nonceGenSk_unforgeable_fin {m : ℕ} (hm : n ≤ m)
-    (A : SkAdversaryH n N E X M Rnd Rp Ex (Fin m) (Fin m) Coins) (hN : N < n) (qh qn qa : ℕ)
-    (hA : ∀ c P, NBound (A c P) qa)
-    (hG : ∀ c P (Aux : Rp → Rnd), NBound (answerG Aux (A c P)) qn)
-    (hH : ∀ c P G (Aux : Rp → Rnd),
-      HashBound (answerG (fun _ : Ex => ()) (answerG G (answerG Aux (A c P)))) qh) :
-    nonceGenSkAdvantageH C nonceCoef N qs (redFin m) A (redFin m) e₀ mask ≤
-      Real.sqrt ((qh + qs + 1 : ℕ) *
-          (omdlAdvantage C (2 * qs + 1)
-              (reduction C nonceCoef N qs
-                (withTable N (withAux N (liftHashSk N (liftFin hm) A)))) +
-            collisionAdvantage C nonceCoef N qs
-              (withTable N (withAux N (liftHashSk N (liftFin hm) A))))) +
-        (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ) +
-        (qh + qs + N : ℕ) * ((m - n : ℝ) / m) +
-        (qs : ℝ) ^ 2 / Fintype.card Rnd + qs * (qn / Fintype.card Rnd) +
-        (2 * qs : ℕ) * ((m - (n - 1) : ℝ) / m) +
-        (qs : ℝ) ^ 2 / Fintype.card Rp + qs * (qa / Fintype.card Rp) := by
-  have hn : 0 < n := (Fact.out : n.Prime).pos
-  have : Nonempty (Fin m) := ⟨⟨0, lt_of_lt_of_le hn hm⟩⟩
-  have h := nonceGenSk_unforgeable_hashed C nonceCoef N qs (redFin m) e₀ A (redFin m) mask
-    (liftFin hm) (fun c => ZMod.natCast_zmod_val c)
-    (fun u => ⟨(u : ZMod n).val, lt_of_lt_of_le (ZMod.val_lt _) hm⟩)
-    (fun u u' h => Units.ext (ZMod.val_injective n (Fin.mk.inj h)))
-    (fun u => ZMod.natCast_zmod_val _) hN qh qn qa hA hG hH
-  rw [ZMod.card_units_eq_totient, Nat.totient_prime Fact.out, Fintype.card_fin,
-    Nat.cast_sub hn, Nat.cast_one] at h
-  exact h
 
 end Dahlias.Security

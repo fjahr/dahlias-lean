@@ -3,7 +3,7 @@ import Dahlias.BytesCorrectness
 import Dahlias.Proofs.Game
 import Dahlias.Hashed
 import Dahlias.BindingHashed
-import Dahlias.NonceGenHashed
+import Dahlias.NonceGenLazy
 
 /-!
 # The security theorems for 32-byte keys and messages
@@ -25,7 +25,8 @@ is at most `2^-127` for every oracle value the game reads (`hash_gap`).
 
 `bytes_nonceGenSk_unforgeable_256` and `bytes_nonceGen_unforgeable_256` have
 all of it at once: the 32-byte instance, the 256-bit challenge hash and the
-nonces of `NonceGen`, with and without its `sk` argument.
+nonces of `NonceGen`, with and without its `sk` argument. The forger, the
+reduction and the collision finder in them sample all random oracles lazily.
 -/
 
 set_option linter.unusedSectionVars false
@@ -124,7 +125,7 @@ theorem bytes_strongly_binding_256 {Coins : Type} [Fintype Coins] (N : ℕ)
 
 /-! ## `NonceGen`, 256-bit hashes and 32-byte values together -/
 
-instance : Nonempty B32 := ⟨⟨List.replicate 32 0, List.length_replicate⟩⟩
+instance : Inhabited B32 := ⟨⟨List.replicate 32 0, List.length_replicate⟩⟩
 
 /-- There are `2²⁵⁶` 32-byte arrays. -/
 theorem card_B32 : Fintype.card B32 = 2 ^ 256 := by
@@ -145,7 +146,8 @@ that are reduced modulo `n`. The nonce coefficient hash is the BIP's.
 
 The adversary makes at most `qh`, `qn` and `qa` queries to the three oracles
 and opens at most `qs` sessions. `extra_in` is a value of any finite type
-`Ex`. -/
+`Ex`. The forger `withStream (withAuxStream …)`, the reduction and the
+collision finder sample all random oracles lazily. -/
 theorem bytes_nonceGenSk_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fintype Ex]
     [DecidableEq Ex] (N qs : ℕ)
     (A : SkAdversaryH n N Point B32 B32 B32 B32 Ex (Fin (2 ^ 256)) (Fin (2 ^ 256)) Coins)
@@ -158,10 +160,12 @@ theorem bytes_nonceGenSk_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fint
         mask ≤
       Real.sqrt ((qh + qs + 1 : ℕ) *
         (omdlAdvantage secp256k1X (2 * qs + 1)
-            (reduction secp256k1X nonceCoef32 N qs
-              (withTable N (withAux N (liftHashSk N (liftFin n_lt.le) A)))) +
-          collisionAdvantage secp256k1X nonceCoef32 N qs
-            (withTable N (withAux N (liftHashSk N (liftFin n_lt.le) A))))) +
+            (reductionLazy secp256k1X nonceCoef32 N qs
+              (withStream N qn (withAuxStream N qa (liftHashSk N (liftFin n_lt.le) A)))
+              (2 * (qh + qs) + 1)) +
+          collisionAdvantageLazy secp256k1X nonceCoef32 N qs
+            (withStream N qn (withAuxStream N qa (liftHashSk N (liftFin n_lt.le) A)))
+            (2 * (qh + qs)))) +
         (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ) +
         (qh + qs + N : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ)) +
         (qs : ℝ) ^ 2 / ((2 ^ 256 : ℕ) : ℝ) + qs * (qn / ((2 ^ 256 : ℕ) : ℝ)) +
@@ -177,7 +181,8 @@ set_option synthInstance.maxSize 4000 in
 argument and 256-bit hashes is unforgeable under AOMDL.** The `rand` of
 `NonceGen` is a uniform 32-byte value. `hash_BIP0459/sig` and
 `hash_BIP0459/nonce` are random oracles with 256-bit outputs that are reduced
-modulo `n`. The nonce coefficient hash is the BIP's. -/
+modulo `n`. The nonce coefficient hash is the BIP's. The forger `withStream`,
+the reduction and the collision finder sample the random oracles lazily. -/
 theorem bytes_nonceGen_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fintype Ex]
     [DecidableEq Ex] (N qs : ℕ)
     (A : NAdversaryH n N Point B32 B32 B32 Ex (Fin (2 ^ 256)) (Fin (2 ^ 256)) Coins) (e₀ : Ex)
@@ -186,10 +191,10 @@ theorem bytes_nonceGen_unforgeable_256 {Coins Ex : Type} [Fintype Coins] [Fintyp
     nonceGenAdvantageH secp256k1X nonceCoef32 N qs (redFin (2 ^ 256)) A (redFin (2 ^ 256)) e₀ ≤
       Real.sqrt ((qh + qs + 1 : ℕ) *
         (omdlAdvantage secp256k1X (2 * qs + 1)
-            (reduction secp256k1X nonceCoef32 N qs
-              (withTable N (liftHashN N (liftFin n_lt.le) A))) +
-          collisionAdvantage secp256k1X nonceCoef32 N qs
-            (withTable N (liftHashN N (liftFin n_lt.le) A)))) +
+            (reductionLazy secp256k1X nonceCoef32 N qs
+              (withStream N qn (liftHashN N (liftFin n_lt.le) A)) (2 * (qh + qs) + 1)) +
+          collisionAdvantageLazy secp256k1X nonceCoef32 N qs
+            (withStream N qn (liftHashN N (liftFin n_lt.le) A)) (2 * (qh + qs)))) +
         (qh + qs + 1 : ℕ) / n + qs / (n - 1 : ℝ) +
         (qh + qs + N : ℕ) * ((((2 ^ 256 : ℕ) : ℝ) - n) / ((2 ^ 256 : ℕ) : ℝ)) +
         (qs : ℝ) ^ 2 / ((2 ^ 256 : ℕ) : ℝ) + qs * (qn / ((2 ^ 256 : ℕ) : ℝ)) +

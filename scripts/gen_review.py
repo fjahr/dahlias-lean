@@ -93,14 +93,19 @@ SECTIONS = [
        ["SkAdversary", "withAux", "winSk", "nonceGenSkExperiment", "nonceGenSkAdvantage",
         "nonceGenSk_advantage"])]),
     ("`NonceGen`, 256-bit hashes and 32-byte values together",
-     "`Dahlias/NonceGenHashed.lean` and `Dahlias/BytesSecurity.lean`. One game has the nonces of "
-     "`NonceGen` and a challenge hash whose outputs the adversary sees and the signer and the "
-     "verifier reduce.",
+     "`Dahlias/NonceGenHashed.lean`, `Dahlias/NonceGenLazy.lean` and "
+     "`Dahlias/BytesSecurity.lean`. One game has the nonces of `NonceGen` and a challenge hash "
+     "whose outputs the adversary sees and the signer and the verifier reduce. The forgers "
+     "`withStream` and `withAuxStream` answer the queries to the hash functions of `NonceGen` "
+     "from values in their coins.",
      [("Dahlias/NonceGenHashed.lean",
        ["mapAns", "sumAns", "NAdversaryH", "SkAdversaryH", "challengerEH", "RestH",
         "nonceGenExperimentH", "nonceGenSkExperimentH", "nonceGenAdvantageH",
-        "nonceGenSkAdvantageH", "hashAns", "liftHashN", "liftHashSk",
-        "nonceGen_unforgeable_fin", "nonceGenSk_unforgeable_fin"]),
+        "nonceGenSkAdvantageH", "hashAns", "liftHashN", "liftHashSk"]),
+      ("Dahlias/Second.lean", ["answerLazy"]),
+      ("Dahlias/NonceGenLazy.lean",
+       ["withStream", "withAuxStream", "nonceGen_unforgeable_fin",
+        "nonceGenSk_unforgeable_fin"]),
       ("Dahlias/BytesSecurity.lean",
        ["card_B32", "bytes_nonceGenSk_unforgeable_256", "bytes_nonceGen_unforgeable_256"])]),
     ("Binding",
