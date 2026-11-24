@@ -138,16 +138,18 @@ SECTIONS = [
         "verify_eq_false_of_one_bad"])]),
     ("The bytes",
      "`Dahlias/Bytes.lean` and `Dahlias/Encoding.lean`. `Sign` and `Verify` on bytes parse "
-     "their inputs and call the model.",
+     "their inputs and call the model. `NonceGen` on bytes derives the nonces as the games do.",
      [("Dahlias/Bytes.lean",
        ["specOps", "cbytes", "cpoint", "parseNonce", "scalar", "scalarWrap", "hashes",
-        "wellFormed", "sign", "verify"]),
+        "wellFormed", "nonceGen", "sign", "verify"]),
       ("Dahlias/BytesSecurity.lean", ["vals", "Agree"]),
       ("Dahlias/Encoding.lean",
        ["cpoint_eq_some_iff", "matchIdxs_bytes", "sigInput", "nonceCoefInput", "Pairs32",
         "sigInput_injective", "Items32", "nonceCoefInput_injective", "nonceCoefBytes",
         "collision_bytes", "verify_bytes",
-        "sign_bytes"])]),
+        "sign_bytes", "length_sha256", "int256", "sigHash256", "hashes_sig_eq_redFin",
+        "auxHash", "nonceInput", "nonceHash256", "nonceInput_injective", "nonceGen_eq",
+        "nonceGen_sk_eq"])]),
 ]
 
 

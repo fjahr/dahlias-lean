@@ -28,6 +28,14 @@ and scalars. This file connects those choices to BIP 459's bytes.
   arrays for the nonces, are `Sign` and `Verify` of the instance that
   `bytes_unforgeable` is about, on the parsed nonces. A nonce that does not
   parse becomes the point `0`, which the adversary of the game may also send.
+* `length_sha256`: SHA-256 has 32 bytes of output. So `hash_BIP0459/sig` is a
+  256-bit value reduced modulo `n` (`hashes_sig_eq_redFin`), the form that the
+  games with hash outputs have.
+* `nonceGen_eq`, `nonceGen_sk_eq`: `NonceGen` on bytes (`Dahlias.Bytes`)
+  derives the secret nonces as the games of `Dahlias.NonceGen` and
+  `Dahlias.NonceGenSk` do, with the tagged hashes `nonceHash256` and `auxHash`
+  as the oracles and `maskXor` as the mask. `nonceInput_injective`: the bytes
+  that `hash_BIP0459/nonce` hashes determine `(rand, extra_in, i)`.
 -/
 
 set_option linter.unusedSectionVars false
@@ -437,5 +445,105 @@ theorem sign_bytes {H : Hashes n Point B32 B32} (hH : Agree H hashes) (r₁ r₂
             rw [h, hp]
             rfl
     simp only [hwf, Bool.false_and, Bool.false_eq_true, ↓reduceIte, hnone, Option.map_none]
+
+/-! ## The hash functions as functions to 256-bit values, and `NonceGen` -/
+
+theorem size_sha256Block (h : Array UInt32) (blk : Array UInt8) (off : ℕ) :
+    (sha256Block h blk off).size = 8 := by
+  unfold sha256Block
+  simp
+
+theorem foldl_invariant {α β : Type} (P : β → Prop) (f : β → α → β)
+    (hf : ∀ b a, P b → P (f b a)) : ∀ (l : List α) (b : β), P b → P (l.foldl f b)
+  | [], _, hb => hb
+  | a :: l, b, hb => foldl_invariant P f hf l (f b a) (hf b a hb)
+
+/-- **SHA-256 has 32 bytes of output.** -/
+theorem length_sha256 (msg : Bytes) : (sha256 msg).length = 32 := by
+  unfold sha256
+  simp only [Std.Legacy.Range.forIn_eq_forIn_range', List.forIn_pure_yield_eq_foldl]
+  simp only [Id.run, bind, pure]
+  have hsize : ∀ l : List ℕ, (List.foldl
+      (fun b a => sha256Block b (List.toArray (sha256Pad msg)) (64 * a)) sha256H0 l).size = 8 :=
+    fun l => foldl_invariant (fun h : Array UInt32 => h.size = 8) _
+      (fun b a _ => size_sha256Block _ _ _) l _ rfl
+  rw [List.length_flatMap]
+  simp [hsize]
+
+theorem length_taggedHash (tag : String) (msg : Bytes) : (taggedHash tag msg).length = 32 :=
+  length_sha256 _
+
+/-- A 32-byte array as a 256-bit value. -/
+def int256 (b : Bytes) (h : b.length = 32) : Fin (2 ^ 256) :=
+  ⟨toNatBE b, by
+    have := toNatBE_lt b
+    rw [h] at this
+    exact lt_of_lt_of_eq this (by norm_num)⟩
+
+/-- `hash_BIP0459/sig` with its 256-bit output. -/
+def sigHash256 (pm : List (Bytes × Bytes)) (r : Bytes) (pkm : Bytes × Bytes) : Fin (2 ^ 256) :=
+  int256 (taggedHash "BIP0459/sig" (sigInput pm r pkm)) (length_taggedHash _ _)
+
+/-- **The challenge hash of BIP 459 is a 256-bit hash output reduced modulo
+`n`**: the form `red ∘ Tab` that the games with hash outputs have, with
+`red = redFin (2^256)`. -/
+theorem hashes_sig_eq_redFin (pm : List (Bytes × Bytes)) (r : Bytes) (pkm : Bytes × Bytes) :
+    Bytes.hashes.sig pm r pkm = redFin (2 ^ 256) (sigHash256 pm r pkm) :=
+  rfl
+
+/-- `hash_BIP0459/aux` on 32-byte arrays. -/
+def auxHash (r : B32) : B32 := ⟨taggedHash "BIP0459/aux" r.1, length_taggedHash _ _⟩
+
+/-- The bytes that `hash_BIP0459/nonce` hashes: `rand ‖ extra_in ‖ i`. -/
+def nonceInput (rand : B32) (extraIn : Bytes) (i : Bool) : Bytes :=
+  rand.1 ++ extraIn ++ [if i then 1 else 0]
+
+/-- `hash_BIP0459/nonce` with its 256-bit output, as a function of
+`(rand, extra_in, i)`. -/
+def nonceHash256 (z : B32 × Bytes × Bool) : Fin (2 ^ 256) :=
+  int256 (taggedHash "BIP0459/nonce" (nonceInput z.1 z.2.1 z.2.2)) (length_taggedHash _ _)
+
+/-- **The input of `hash_BIP0459/nonce` determines `(rand, extra_in, i)`**,
+for a 32-byte `rand` and an `extra_in` of any length. So a hash of the bytes
+is a function of the triple, which is what the games query. -/
+theorem nonceInput_injective {rand rand' : B32} {e e' : Bytes} {i i' : Bool}
+    (h : nonceInput rand e i = nonceInput rand' e' i') : rand = rand' ∧ e = e' ∧ i = i' := by
+  unfold nonceInput at h
+  rw [List.append_assoc, List.append_assoc] at h
+  obtain ⟨h1, h2⟩ := List.append_inj h (rand.2.trans rand'.2.symm)
+  obtain ⟨h3, h4⟩ := List.append_inj' h2 rfl
+  refine ⟨Subtype.ext h1, h3, ?_⟩
+  cases i <;> cases i' <;> simp_all
+
+/-- **`NonceGen` without the `sk` argument, on bytes, derives the nonces as the
+games do**: the secret nonces are `ρ (G (rand, extra_in, i))` for
+`G = nonceHash256` and `ρ = redFin (2^256)`. It fails if one of them is
+zero. -/
+theorem nonceGen_eq (O : Ops n Point Bytes) (rand : B32) (extraIn : Bytes) :
+    Bytes.nonceGen O rand.1 none extraIn =
+      (Dahlias.nonceGen O (redFin (2 ^ 256) (nonceHash256 (rand, extraIn, false)))
+        (redFin (2 ^ 256) (nonceHash256 (rand, extraIn, true)))).map
+          fun (sec, pub) => (serScalar sec.1 ++ serScalar sec.2, serNonce pub) := by
+  have h32 : is32 rand.1 = true := by simp [is32, rand.2]
+  unfold Bytes.nonceGen
+  simp only [h32, Option.all_none, Bool.and_true, ↓reduceIte]
+  rfl
+
+/-- **`NonceGen` with the `sk` argument, on bytes, derives the nonces as the
+games do**: the secret nonces are `ρ (G (rand, extra_in, i))` with
+`rand = maskXor x (Aux rand')`, for `G = nonceHash256`, `Aux = auxHash` and
+`ρ = redFin (2^256)`. So `maskXor` is the xor of BIP 459's `NonceGen`. -/
+theorem nonceGen_sk_eq (O : Ops n Point Bytes) (x : (ZMod n)ˣ) (rand' : B32)
+    (extraIn : Bytes) :
+    Bytes.nonceGen O rand'.1 (some (serScalar (x : ZMod n))) extraIn =
+      (Dahlias.nonceGen O
+        (redFin (2 ^ 256) (nonceHash256 (maskXor x (auxHash rand'), extraIn, false)))
+        (redFin (2 ^ 256) (nonceHash256 (maskXor x (auxHash rand'), extraIn, true)))).map
+          fun (sec, pub) => (serScalar sec.1 ++ serScalar sec.2, serNonce pub) := by
+  have h32 : is32 rand'.1 = true := by simp [is32, rand'.2]
+  have hsk : is32 (serScalar (x : ZMod n)) = true := by simp [is32, serScalar]
+  unfold Bytes.nonceGen
+  simp only [h32, Option.all_some, hsk, Bool.and_true, ↓reduceIte]
+  rfl
 
 end Dahlias.Security

@@ -26,6 +26,10 @@ The three terms: two sessions draw the same `rand`, the adversary queries `G`
 on a `rand` of the signer, a derived nonce is zero or in the part of `W` where
 `mod n` is not uniform.
 
+BIP 459's `NonceGen` fails if a derived nonce is zero. The signer of this game
+uses the slot all the same. The third term bounds the probability that a slot
+has a zero nonce, and the game with uniform nonzero nonces has no such slot.
+
 `Dahlias.NonceGenSk` adds the optional `sk` argument. A `rand` that is not
 uniform is outside the model: the theorem assumes it is.
 -/

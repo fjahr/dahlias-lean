@@ -50,7 +50,7 @@ The model was compared with BIP 459 at bitcoin/bips commit [`f3d1668`](https://g
 
 **Is the bound tight?** Its additive term is. `grinder` makes `q` random oracle queries and no signing queries, and it computes no discrete logarithm. For each of `q` messages it asks for the challenge of the list `[(pk, m)]` with `R = pk`, and if a challenge is `-1` the signature `(pk, 0)` is valid. It forges with probability at least `1 - ((n - 1) / n)^q`, which is at least `q / (n + q)` (`grinder_advantage`, `grinder_advantage_ge`). `unforgeable_sqrt` bounds this forger by `sqrt (…) + (q + 1) / n`. No theorem here says that the square root or the term `qs / (n - 1)` is needed.
 
-**What connects the theorems to BIP 459's bytes?** `Dahlias/Bytes.lean` defines the algorithms on bytes as parsing followed by the model's algorithms, and the 60 test vectors and the differential tests run them. `Dahlias/Encoding.lean` proves what the model takes for granted. The hash inputs are injective encodings of the structured inputs (`sigInput_injective`, `nonceCoefInput_injective`). `cpoint` accepts exactly the encodings `cbytes(P)`, so comparing nonces as bytes is comparing points (`cpoint_eq_some_iff`, `matchIdxs_bytes`). `sign_bytes` and `verify_bytes` say that `Sign` and `Verify` on bytes are `Sign` and `Verify` of the instance that `bytes_unforgeable` and `bytes_unforgeable_256` are about. A nonce that does not parse becomes the point `0` there, and the adversary of the game may send `0` as well.
+**What connects the theorems to BIP 459's bytes?** `Dahlias/Bytes.lean` defines the algorithms on bytes as parsing followed by the model's algorithms, and the 60 test vectors and the differential tests run them. `Dahlias/Encoding.lean` proves what the model takes for granted. The hash inputs are injective encodings of the structured inputs (`sigInput_injective`, `nonceCoefInput_injective`). `cpoint` accepts exactly the encodings `cbytes(P)`, so comparing nonces as bytes is comparing points (`cpoint_eq_some_iff`, `matchIdxs_bytes`). `sign_bytes` and `verify_bytes` say that `Sign` and `Verify` on bytes are `Sign` and `Verify` of the instance that `bytes_unforgeable` and `bytes_unforgeable_256` are about. A nonce that does not parse becomes the point `0` there, and the adversary of the game may send `0` as well. `nonceGen_eq` and `nonceGen_sk_eq` say that `NonceGen` on bytes derives the secret nonces as the games with `NonceGen` do: they are `hash_BIP0459/nonce(rand ‖ extra_in ‖ i)` as 256-bit values reduced modulo `n`, and with the `sk` argument `rand` is `maskXor x` of `hash_BIP0459/aux(rand')`. The bytes that the nonce hash gets determine `(rand, extra_in, i)` (`nonceInput_injective`). SHA-256 has 32 bytes of output (`length_sha256`), so the challenge hash is a 256-bit value reduced modulo `n` (`hashes_sig_eq_redFin`).
 
 ## BIP 459's claims
 
@@ -81,6 +81,7 @@ What BIP 459 says about correctness and security, and the theorem for it.
 - No theorem bounds running time. `reduction` runs the forger twice, which is visible in its definition. `reductionLazy` and `colliderLazy` show that neither algorithm of the theorem needs a table of exponential size.
 - The game is for lists of at most `N` entries, with `N < n`.
 - The nonces of the game are uniform. `nonceGen_unforgeable` and `nonceGenSk_advantage` derive them as `NonceGen` does, from a uniform `rand'` and with the hash functions of `NonceGen` as random oracles. `nonceGenCtr_advantage` and `bytes_nonceGenCtr_unforgeable_256` are for a `rand'` that is a public counter value, with the `sk` argument. Its counter values are distinct, and every nonce is generated with the secret key itself and not with a tweaked key. No theorem says anything about another `rand'` that is not uniform.
+- BIP 459's `NonceGen` fails if a derived nonce is zero (`nonceGen_eq`). The signer of the games with `NonceGen` uses the slot all the same. The error term for the reduction modulo `n` bounds the probability of such a slot.
 - No theorem states a game in which the adversary sends bytes. In `bytes_unforgeable_256` public keys and messages are 32-byte arrays and the hashes are BIP 459's, but the adversary sends points for the nonces and scalars for the tweaks. `sign_bytes` and `verify_bytes` connect that instance to the functions on bytes.
 - `hash_BIP0459/sig` is a random oracle on structured inputs with lists of at most `N` entries. SHA-256 on the bytes is a function of those inputs (`sigInput_injective`), and modelling it as a random function is the assumption.
 - A single-party signature of the game is for a list of keys that are all tweaks `α + β⋅x`, `β ≠ 0`, of the one honest key. The theorem does not cover a party that signs alone for several unrelated secret keys.
@@ -1890,7 +1891,7 @@ theorem verify_eq_false_of_one_bad {pm : List (X × M)} {pubnonces : List (PubNo
 
 ### The bytes
 
-`Dahlias/Bytes.lean` and `Dahlias/Encoding.lean`. `Sign` and `Verify` on bytes parse their inputs and call the model.
+`Dahlias/Bytes.lean` and `Dahlias/Encoding.lean`. `Sign` and `Verify` on bytes parse their inputs and call the model. `NonceGen` on bytes derives the nonces as the games do.
 
 ```lean
 /-- The secp256k1 operations of BIP 459, on 32-byte x-coordinates. -/
@@ -1948,6 +1949,21 @@ def hashes : Hashes n Point Bytes Bytes where
 public keys and messages are 32 bytes. -/
 def wellFormed (pks msgs : List Bytes) (u : ℕ) : Bool :=
   decide (0 < u) && pks.length == u && msgs.length == u && pks.all is32 && msgs.all is32
+```
+
+```lean
+/-- `NonceGen` with the random value `rand'` as an argument, returning
+`(secnonce, pubnonce)`. It fails unless `rand'` and `sk`, if present, are 32
+bytes. -/
+def nonceGen (rand' : Bytes) (sk : Option Bytes) (extraIn : Bytes) : Option (Bytes × Bytes) :=
+  if is32 rand' && sk.all is32 then
+    let rand := match sk with
+      | some sk => List.zipWith (· ^^^ ·) sk (taggedHash "BIP0459/aux" rand')
+      | none => rand'
+    let r (i : UInt8) := scalarWrap (taggedHash "BIP0459/nonce" (rand ++ extraIn ++ [i]))
+    (Dahlias.nonceGen O (r 0) (r 1)).map fun (sec, pub) =>
+      (serScalar sec.1 ++ serScalar sec.2, serNonce pub)
+  else none
 ```
 
 ```lean
@@ -2089,6 +2105,86 @@ theorem sign_bytes {H : Hashes n Point B32 B32} (hH : Agree H hashes) (r₁ r₂
         (pubnonces.map (parseNonce specOps))).map serScalar
 ```
 
+```lean
+/-- **SHA-256 has 32 bytes of output.** -/
+theorem length_sha256 (msg : Bytes) : (sha256 msg).length = 32
+```
+
+```lean
+/-- A 32-byte array as a 256-bit value. -/
+def int256 (b : Bytes) (h : b.length = 32) : Fin (2 ^ 256) :=
+  ⟨toNatBE b, by
+    have := toNatBE_lt b
+    rw [h] at this
+    exact lt_of_lt_of_eq this (by norm_num)⟩
+```
+
+```lean
+/-- `hash_BIP0459/sig` with its 256-bit output. -/
+def sigHash256 (pm : List (Bytes × Bytes)) (r : Bytes) (pkm : Bytes × Bytes) : Fin (2 ^ 256) :=
+  int256 (taggedHash "BIP0459/sig" (sigInput pm r pkm)) (length_taggedHash _ _)
+```
+
+```lean
+/-- **The challenge hash of BIP 459 is a 256-bit hash output reduced modulo
+`n`**: the form `red ∘ Tab` that the games with hash outputs have, with
+`red = redFin (2^256)`. -/
+theorem hashes_sig_eq_redFin (pm : List (Bytes × Bytes)) (r : Bytes) (pkm : Bytes × Bytes) :
+    Bytes.hashes.sig pm r pkm = redFin (2 ^ 256) (sigHash256 pm r pkm)
+```
+
+```lean
+/-- `hash_BIP0459/aux` on 32-byte arrays. -/
+def auxHash (r : B32) : B32 := ⟨taggedHash "BIP0459/aux" r.1, length_taggedHash _ _⟩
+```
+
+```lean
+/-- The bytes that `hash_BIP0459/nonce` hashes: `rand ‖ extra_in ‖ i`. -/
+def nonceInput (rand : B32) (extraIn : Bytes) (i : Bool) : Bytes :=
+  rand.1 ++ extraIn ++ [if i then 1 else 0]
+```
+
+```lean
+/-- `hash_BIP0459/nonce` with its 256-bit output, as a function of
+`(rand, extra_in, i)`. -/
+def nonceHash256 (z : B32 × Bytes × Bool) : Fin (2 ^ 256) :=
+  int256 (taggedHash "BIP0459/nonce" (nonceInput z.1 z.2.1 z.2.2)) (length_taggedHash _ _)
+```
+
+```lean
+/-- **The input of `hash_BIP0459/nonce` determines `(rand, extra_in, i)`**,
+for a 32-byte `rand` and an `extra_in` of any length. So a hash of the bytes
+is a function of the triple, which is what the games query. -/
+theorem nonceInput_injective {rand rand' : B32} {e e' : Bytes} {i i' : Bool}
+    (h : nonceInput rand e i = nonceInput rand' e' i') : rand = rand' ∧ e = e' ∧ i = i'
+```
+
+```lean
+/-- **`NonceGen` without the `sk` argument, on bytes, derives the nonces as the
+games do**: the secret nonces are `ρ (G (rand, extra_in, i))` for
+`G = nonceHash256` and `ρ = redFin (2^256)`. It fails if one of them is
+zero. -/
+theorem nonceGen_eq (O : Ops n Point Bytes) (rand : B32) (extraIn : Bytes) :
+    Bytes.nonceGen O rand.1 none extraIn =
+      (Dahlias.nonceGen O (redFin (2 ^ 256) (nonceHash256 (rand, extraIn, false)))
+        (redFin (2 ^ 256) (nonceHash256 (rand, extraIn, true)))).map
+          fun (sec, pub) => (serScalar sec.1 ++ serScalar sec.2, serNonce pub)
+```
+
+```lean
+/-- **`NonceGen` with the `sk` argument, on bytes, derives the nonces as the
+games do**: the secret nonces are `ρ (G (rand, extra_in, i))` with
+`rand = maskXor x (Aux rand')`, for `G = nonceHash256`, `Aux = auxHash` and
+`ρ = redFin (2^256)`. So `maskXor` is the xor of BIP 459's `NonceGen`. -/
+theorem nonceGen_sk_eq (O : Ops n Point Bytes) (x : (ZMod n)ˣ) (rand' : B32)
+    (extraIn : Bytes) :
+    Bytes.nonceGen O rand'.1 (some (serScalar (x : ZMod n))) extraIn =
+      (Dahlias.nonceGen O
+        (redFin (2 ^ 256) (nonceHash256 (maskXor x (auxHash rand'), extraIn, false)))
+        (redFin (2 ^ 256) (nonceHash256 (maskXor x (auxHash rand'), extraIn, true)))).map
+          fun (sec, pub) => (serScalar sec.1 ++ serScalar sec.2, serNonce pub)
+```
+
 ### Every definition behind the results
 
 The definitions of the project that the statements of the results in `Dahlias/Summary.lean` depend on, directly or through other definitions. `#surface` in `Dahlias/Audit.lean` computes the list from the compiled project, `Dahlias/Summary.lean` guards it, and the build fails if it changes. Proofs are not followed, since what a proof uses does not change what a statement says. Whoever agrees with these definitions knows what the results say. The ones that are not printed above have to be read in the sources.
@@ -2103,7 +2199,7 @@ The definitions of the project that the statements of the results in `Dahlias/Su
 - `Dahlias/BytesCurve.lean`: `Bytes.secp256k1B`
 - `Dahlias/BytesSecurity.lean`: `Security.Agree`, `Security.B32`, `Security.instDecidableEqB32`, `Security.instFintypeB32`, `Security.instInhabitedB32`, `Security.maskXor`, `Security.nonceCoef32`, `Security.secp256k1X`, `Security.ser32`, `Security.unmaskXor`, `Security.vals`, `Security.xor32`
 - `Dahlias/Correctness.lean`: `Signer`, `Signer.pkm`, `Signer.pubnonce`
-- `Dahlias/Encoding.lean`: `Bytes.Items32`, `Bytes.Pairs32`, `Bytes.nonceCoefInput`, `Bytes.sigInput`, `Security.nonceCoefBytes`
+- `Dahlias/Encoding.lean`: `Bytes.Items32`, `Bytes.Pairs32`, `Bytes.nonceCoefInput`, `Bytes.sigInput`, `Security.auxHash`, `Security.int256`, `Security.nonceCoefBytes`, `Security.nonceGen_eq`, `Security.nonceHash256`, `Security.nonceInput`, `Security.sigHash256`
 - `Dahlias/Examples.lean`: `Security.guesser`
 - `Dahlias/Fork.lean`: `QTree.Accepts`, `QTree.Forks`
 - `Dahlias/Hashed.lean`: `Security.AdvRH`, `Security.AdversaryH`, `Security.ForgeSampleH`, `Security.challengerH`, `Security.forgeAdvantageH`, `Security.forgeExperimentH`, `Security.liftFin`, `Security.liftHash`, `Security.redFin`
