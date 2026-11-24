@@ -124,7 +124,7 @@ For two of BIP 459's checks there is more than a proof that fails. `msgSwap_wins
 
 ### Tests of the implementations
 
-`scripts/fuzz.py` compares the algorithms on bytes with BIP 459's `reference.py` and with libsecp256k1's `fullagg` module, on honest sessions and on malformed inputs. `scripts/mutate_secp256k1.py` measures what those cases, the module's unit tests and the exhaustive tests on a small group notice. Of 57 small changes to the C module they notice 56. The README has the details and the one exception.
+`scripts/fuzz.py` compares the algorithms on bytes with BIP 459's `reference.py` and with libsecp256k1's `fullagg` module, on honest sessions and on malformed inputs. `scripts/mutate_secp256k1.py` measures what those cases, the module's unit tests and the exhaustive tests on a small group notice. Of 59 small changes to the C module they notice 58. The README has the details and the one exception.
 
 ## The statements
 

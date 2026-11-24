@@ -120,6 +120,11 @@ MUTANTS = [
        "        (void)secp256k1_scalar_set_b32_seckey(&sk, seckey);\n", None)]),
     ("N8", "nonce_gen: rand' not cleared after use",
      [("    secp256k1_memczero(session_secrand32, 32, ret);\n", "", None)]),
+    ("N9", "nonce_gen_counter: the counter is not written into rand'",
+     [("    secp256k1_write_be64(buf, nonrepeating_cnt);\n", "    (void)nonrepeating_cnt;\n", None)]),
+    ("N10", "nonce_gen_counter: the secret key is not passed on",
+     [("    ret = secp256k1_fullagg_nonce_gen_internal(ctx, secnonce, pubnonce, buf, seckey,\n",
+       "    ret = secp256k1_fullagg_nonce_gen_internal(ctx, secnonce, pubnonce, buf, NULL,\n", None)]),
     # NonceAgg
     ("G1", "nonce_agg: R1 at infinity accepted",
      [(INF, "    if (secp256k1_gej_is_infinity(&aggnonce_ptsj[1])) {\n", 0)]),

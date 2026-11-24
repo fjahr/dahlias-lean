@@ -11,6 +11,11 @@ NonceGen, NonceAgg, Sign, SigAgg, PartialSigVerify, Verify and the key tweaks,
 runs them through reference.py and through the Lean model (scripts/Fuzz.lean),
 and reports every case where the two disagree.
 
+NonceGen also runs with a counter in place of the random value (kind C), the
+way secp256k1_fullagg_nonce_gen_counter runs it: the secret key is given and
+rand' is the 8-byte counter followed by 24 zero bytes. The reference and the
+Lean model get that array.
+
 reference.py takes parsed points and scalars. The byte arrays are parsed here
 the way bip-0459/run_test_vectors.py parses them, so a parse failure counts as
 a failure of the algorithm. Lengths are checked here first: secp256k1lab
@@ -187,6 +192,11 @@ class Gen:
                 (r1, r2), (R1, R2) = ref.NonceGenInternal(rand, sk, extra)
                 return (r1.to_bytes() + r2.to_bytes()).hex() + ":" + \
                     (R1.to_bytes_compressed() + R2.to_bytes_compressed()).hex()
+            if kind == "C":
+                _, cnt, sk, extra = case
+                (r1, r2), (R1, R2) = ref.NonceGenInternal(cnt + bytes(24), self.scalar(sk), extra)
+                return (r1.to_bytes() + r2.to_bytes()).hex() + ":" + \
+                    (R1.to_bytes_compressed() + R2.to_bytes_compressed()).hex()
             if kind == "N":
                 R1, R2 = ref.NonceAgg([self.parse_nonce(b) for b in case[1]])
                 return (R1.to_bytes_compressed() + R2.to_bytes_compressed()).hex()
@@ -267,6 +277,11 @@ class Gen:
                 known = "noncegen-sk"
         extra = self.rbytes(self.rng.choice([0, 0, 1, 32, 33, 100]))
         return ("G", self.rbytes(32), sk, extra), known
+
+    def case_noncegen_counter(self):
+        cnt = self.rng.choice([0, 1, 2**32, 2**64 - 1, self.rng.randrange(2**64)])
+        extra = self.rbytes(self.rng.choice([0, 0, 32, 32, 1, 33]))
+        return ("C", cnt.to_bytes(8, "big"), self.rng.choice(self.keys), extra), None
 
     def case_nonceagg(self):
         s = self.session(1, 4)
@@ -520,7 +535,8 @@ def encode(case):
 def make_cases(gen, count, with_c):
     """The cases and their known-difference labels. `with_c` adds the kinds for the C API."""
     makers = [gen.case_noncegen, gen.case_nonceagg, gen.case_sign, gen.case_sign, gen.case_sigagg,
-              gen.case_partial, gen.case_verify, gen.case_verify, gen.case_tweak]
+              gen.case_partial, gen.case_verify, gen.case_verify, gen.case_tweak,
+              gen.case_noncegen_counter]
     if with_c:
         makers += [gen.case_reuse, gen.case_session]
     made = [makers[i % len(makers)]() for i in range(count)]

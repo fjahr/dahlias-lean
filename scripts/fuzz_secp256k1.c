@@ -15,7 +15,9 @@
  * layout of secp256k1_fullagg_secnonce_save (magic, r1, r2, public key).
  *
  * NonceGen: secp256k1_fullagg_nonce_gen takes extra_input32 as 32 bytes or
- * NULL, so other lengths print SKIP.
+ * NULL, so other lengths print SKIP. Lines of kind `C` call
+ * secp256k1_fullagg_nonce_gen_counter with the counter and the key pair of the
+ * secret key.
  *
  * Two kinds of cases test the state the C API keeps and have no counterpart in
  * the BIP's algorithms:
@@ -25,6 +27,7 @@
  *   whether the last call was rejected.
  * - `X`, with the fields of `S` and a second set of lists: initialize the
  *   session with the first lists and sign with the second. */
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -134,6 +137,28 @@ static void do_noncegen(char *rand_s, char *sk_s, char *extra_s) {
         printf("FAIL\n"); return;
     }
     if (!secp256k1_fullagg_nonce_gen(ctx, &sec, &pub, rand, has_sk ? sk : NULL, &pk, elen ? extra : NULL)) {
+        printf("FAIL\n"); return;
+    }
+    secp256k1_fullagg_pubnonce_serialize(ctx, ser, &pub);
+    print_hex(&sec.data[4], 64); printf(":"); print_hex(ser, 66); printf("\n");
+}
+
+static void do_noncegen_counter(char *cnt_s, char *sk_s, char *extra_s) {
+    unsigned char cnt[8], sk[32], extra[MAXF], ser[66];
+    secp256k1_keypair kp;
+    secp256k1_fullagg_secnonce sec;
+    secp256k1_fullagg_pubnonce pub;
+    uint64_t c = 0;
+    int i;
+    long elen = unhex(extra_s, extra, MAXF);
+    if (unhex(cnt_s, cnt, 8) != 8 || unhex(sk_s, sk, 32) != 32 || (elen != 0 && elen != 32)) {
+        printf("SKIP\n"); return;
+    }
+    for (i = 0; i < 8; i++) c = (c << 8) | cnt[i];
+    if (!secp256k1_keypair_create(ctx, &kp, sk)) {
+        printf("FAIL\n"); return;
+    }
+    if (!secp256k1_fullagg_nonce_gen_counter(ctx, &sec, &pub, c, &kp, elen ? extra : NULL)) {
         printf("FAIL\n"); return;
     }
     secp256k1_fullagg_pubnonce_serialize(ctx, ser, &pub);
@@ -327,6 +352,7 @@ int main(void) {
         line[strcspn(line, "\n")] = 0;
         for (f[0] = strtok_r(line, " ", &save); f[k] != NULL && k < 12; f[k] = strtok_r(NULL, " ", &save)) k++;
         if (k == 4 && f[0][0] == 'G') do_noncegen(f[1], f[2], f[3]);
+        else if (k == 4 && f[0][0] == 'C') do_noncegen_counter(f[1], f[2], f[3]);
         else if (k == 2 && f[0][0] == 'N') do_nonceagg(f[1]);
         else if (k == 8 && f[0][0] == 'S') do_sign(f[1], f[2], f[3], f[4], f[5], f[6], f[7], 0);
         else if (k == 8 && f[0][0] == 'R') do_sign(f[1], f[2], f[3], f[4], f[5], f[6], f[7], 1);

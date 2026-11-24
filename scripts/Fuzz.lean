@@ -11,6 +11,8 @@ Line formats (hex fields, `_` for empty bytes, `-` for an empty list or an
 absent optional argument, lists separated by `,`):
 
 * `G rand sk extra_in`: `NonceGen` with the given `rand'`
+* `C counter sk extra_in`: `NonceGen` with the 8-byte counter followed by 24
+  zero bytes as `rand'`, as `secp256k1_fullagg_nonce_gen_counter` runs it
 * `N pubnonces`: `NonceAgg`
 * `S secnonce sk m aggnonce pks msgs pubnonces`: `Sign`
 * `A aggnonce pks msgs pubnonces psigs`: `SigAgg`
@@ -41,6 +43,11 @@ def run (line : String) : String :=
   match line.splitOn " " with
   | ["G", rand, sk, extraIn] =>
     match Bytes.nonceGen O (field rand) (if sk == "-" then none else some (field sk))
+        (field extraIn) with
+    | some (sec, pub) => toHex sec ++ ":" ++ toHex pub
+    | none => "FAIL"
+  | ["C", cnt, sk, extraIn] =>
+    match Bytes.nonceGen O (field cnt ++ List.replicate 24 0) (some (field sk))
         (field extraIn) with
     | some (sec, pub) => toHex sec ++ ":" ++ toHex pub
     | none => "FAIL"

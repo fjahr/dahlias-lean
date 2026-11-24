@@ -80,7 +80,7 @@ python3 scripts/gen_review.py
 
 ## Differential testing
 
-`scripts/fuzz.py` generates honest signing sessions and malformed variants of every input, takes BIP 459's `reference.py` as the reference, and runs the same inputs through the Lean model (`scripts/Fuzz.lean`) and optionally through libsecp256k1's `fullagg` module (`scripts/fuzz_secp256k1.c`).
+`scripts/fuzz.py` generates honest signing sessions and malformed variants of every input, takes BIP 459's `reference.py` as the reference, and runs the same inputs through the Lean model (`scripts/Fuzz.lean`) and optionally through libsecp256k1's `fullagg` module (`scripts/fuzz_secp256k1.c`). One kind of case runs `NonceGen` with a counter in place of the random value: `secp256k1_fullagg_nonce_gen_counter` in C, and `NonceGen` with the secret key and the counter as `rand'` in the reference and the model.
 
 ```sh
 python3 scripts/fuzz.py path/to/bips/bip-0459 --cases 5000 --seed 1
@@ -133,11 +133,11 @@ build/bin/exhaustive_tests
 
 The test passes on the groups of order 13 and 199. On order 13 the whole exhaustive suite takes about 15 seconds with it. On order 199 the new test alone takes about 26 seconds. There it tries all secret nonces of one signer, and all pairs of second nonces of two signers and of the first two of three signers, with the other values random. The order is a compile-time constant of `src/tests_exhaustive.c` (`-DEXHAUSTIVE_TEST_ORDER=199` for that file only), and the rest of the suite is slow on that group.
 
-Of the 57 mutants of the C module in the next section, the exhaustive tests notice 26.
+Of the 59 mutants of the C module in the next section, the exhaustive tests notice 26.
 
 ## Mutation test of the C module
 
-`scripts/mutate_secp256k1.py` makes 57 small changes to `src/modules/fullagg/main_impl.h`, one at a time: a check dropped, a hash input left out or swapped, a sign wrong. For each mutant it asks three sets of tests whether they notice:
+`scripts/mutate_secp256k1.py` makes 59 small changes to `src/modules/fullagg/main_impl.h`, one at a time: a check dropped, a hash input left out or swapped, a sign wrong. For each mutant it asks three sets of tests whether they notice:
 
 - the module's 12 unit tests, which include BIP 459's test vectors,
 - the cases of `scripts/fuzz.py`, where it compares the mutant's output with the unmutated library's,
@@ -149,15 +149,17 @@ python3 scripts/mutate_secp256k1.py path/to/secp256k1 path/to/bips/bip-0459
 
 The script works on an export of the checkout's `HEAD` in a temporary directory and takes about 25 minutes.
 
-At the commit named above, with 3,300 cases (seed 7), the three sets together notice 56 of the 57 mutants. The survivor is `verify` reducing an `r ≥ p` modulo `p` where it should reject. A test for it needs a valid signature whose `R` has an x-coordinate below `2^256 - p`.
+At the commit named above, with 3,300 cases (seed 7), the three sets together notice 58 of the 59 mutants. The survivor is `verify` reducing an `r ≥ p` modulo `p` where it should reject. A test for it needs a valid signature whose `R` has an x-coordinate below `2^256 - p`.
 
 Only the exhaustive tests notice three mutants: `session_init` or `partial_sig_verify` accepting an `R` at infinity, and `verify` reducing an `s ≥ n` modulo `n`. On secp256k1 a test would need one particular hash output, or a valid signature with `s < 2^256 - n`.
 
-The unit tests alone miss 12 mutants: those four and the following eight.
+The unit tests alone miss 14 mutants: those four and the following ten.
 
 | Mutant | Why the unit tests pass |
 |---|---|
 | `nonce_gen` accepts a secret key that is zero or not below `n` | No test calls it with such a key. |
+| `nonce_gen_counter` does not use the counter | `fullagg_nonce_gen_counter_test` runs one session with the counters 0 and 1 for two different keys and checks that the signature verifies. It does not compare the nonces of two counters. |
+| `nonce_gen_counter` does not use the secret key | The same test. Nothing checks that the nonces depend on the key. |
 | `partial_sign` accepts a `secnonce` made for another public key | No test tries. |
 | `partial_sign` accepts lists in which the signer's `R2` appears twice | The vector "Signer's R2 appears at two indices" is run with the signer at index 0. The code remembers the last index with that `R2` and also compares it with the signer's, so the second check fails for this vector. |
 | `partial_sign` accepts the signer's `R2` at another index than the signer's | No test has it only there. |
@@ -166,7 +168,7 @@ The unit tests alone miss 12 mutants: those four and the following eight.
 | `partial_sig_parse` accepts a value not below `n` | No test tries. |
 | `verify` accepts an empty list | The signature of the vector "Empty signer list" does not satisfy `s⋅G = R`, so `verify` rejects it with or without the check. |
 
-The cases of `scripts/fuzz.py` notice all eight. Four mutants are noticed by the unit tests only, in `api_tests`: `nonce_gen` accepting an all-zero `rand'` or not clearing it, `session_init` accepting empty lists, and `partial_sign` not comparing the number of signers with the session. The driver never makes those calls.
+The cases of `scripts/fuzz.py` notice all ten. The two mutants of `nonce_gen_counter` would each give away the secret key: without the counter all nonces of a key are the same, and without the key the nonces are a public function of the counter. Four mutants are noticed by the unit tests only, in `api_tests`: `nonce_gen` accepting an all-zero `rand'` or not clearing it, `session_init` accepting empty lists, and `partial_sign` not comparing the number of signers with the session. The driver never makes those calls.
 
 ## License
 
