@@ -85,6 +85,10 @@ MUTANTS = [
      [("Dahlias/NonceGenCounter.lean",
        "  winSk C nonceCoef N qs A ρ e₀ mask ω.1 ω.2 fun k => ω.2 (ctr k)\n",
        "  winSk C nonceCoef N qs A ρ e₀ (fun _ => mask 1) ω.1 ω.2 fun k => ω.2 (ctr k)\n")]),
+    ("verifyB", "the game with the byte interface accepts a forgery without Verify",
+     [("Dahlias/BytesGame.lean",
+       "    Bytes.verifyWith specOps (hashesB N red Tab) f.pks f.msgs f.sig = true\n\n",
+       "    True\n\n")]),
     ("fresh", "the forger of the game with a counter does not check that its message is new",
      [("Dahlias/NonceGenCounter.lean",
        "decide ([(C.x (C.mulG x'), msgs j)] ∉ tr.map (signedList C x')) with\n"

@@ -368,14 +368,16 @@ theorem all_is32 (pm : List (B32 × B32)) :
     intro e _
     simp [is32, e.1.2, e.2.2]
 
-/-- **`Verify` on bytes is `Verify` of the instance**: for 32-byte public
-keys, messages and `r`, and the encoding of the scalar `s`. -/
-theorem verify_bytes {H : Hashes n Point B32 B32} (hH : Agree H hashes) (pm : List (B32 × B32))
-    (r : B32) (s : ZMod n) :
-    Bytes.verify specOps (pm.map fun e => e.1.1) (pm.map fun e => e.2.1) (r.1 ++ serScalar s) =
+/-- **`Verify` on bytes is `Verify` of the instance**, with any hash functions
+on bytes that agree with those of the instance: for 32-byte public keys,
+messages and `r`, and the encoding of the scalar `s`. -/
+theorem verifyWith_bytes {H : Hashes n Point B32 B32} {Hb : Hashes n Point Bytes Bytes}
+    (hH : Agree H Hb) (pm : List (B32 × B32)) (r : B32) (s : ZMod n) :
+    Bytes.verifyWith specOps Hb (pm.map fun e => e.1.1) (pm.map fun e => e.2.1)
+        (r.1 ++ serScalar s) =
       verify secp256k1X.ops H pm (r, s) := by
   rw [verify_val hH]
-  unfold Bytes.verify
+  unfold Bytes.verifyWith
   have hlen : (r.1 ++ serScalar s).length = 64 := by
     rw [List.length_append, r.2]
     simp [serScalar]
@@ -397,18 +399,28 @@ theorem verify_bytes {H : Hashes n Point B32 B32} (hH : Agree H hashes) (pm : Li
       omega
     simp only [hw, hlen, beq_self_eq_true, Bool.true_and]
 
-/-- **`Sign` on bytes is `Sign` of the instance**: for the encodings of the
-secret nonce and the secret key, a 32-byte message, 32-byte public keys and
-messages, and any byte arrays for the aggregate nonce and the public nonces,
-which are parsed. -/
-theorem sign_bytes {H : Hashes n Point B32 B32} (hH : Agree H hashes) (r₁ r₂ d : ZMod n)
-    (m : B32) (aggnonce : Bytes) (pm : List (B32 × B32)) (pubnonces : List Bytes) :
-    Bytes.sign specOps (serScalar r₁ ++ serScalar r₂) (serScalar d) m.1 aggnonce
+/-- **`Verify` on bytes is `Verify` of the instance**: for 32-byte public
+keys, messages and `r`, and the encoding of the scalar `s`. -/
+theorem verify_bytes {H : Hashes n Point B32 B32} (hH : Agree H hashes) (pm : List (B32 × B32))
+    (r : B32) (s : ZMod n) :
+    Bytes.verify specOps (pm.map fun e => e.1.1) (pm.map fun e => e.2.1) (r.1 ++ serScalar s) =
+      verify secp256k1X.ops H pm (r, s) :=
+  verifyWith_bytes hH pm r s
+
+/-- **`Sign` on bytes is `Sign` of the instance**, with any hash functions on
+bytes that agree with those of the instance: for the encodings of the secret
+nonce and the secret key, a 32-byte message, 32-byte public keys and messages,
+and any byte arrays for the aggregate nonce and the public nonces, which are
+parsed. -/
+theorem signWith_bytes {H : Hashes n Point B32 B32} {Hb : Hashes n Point Bytes Bytes}
+    (hH : Agree H Hb) (r₁ r₂ d : ZMod n) (m : B32) (aggnonce : Bytes) (pm : List (B32 × B32))
+    (pubnonces : List Bytes) :
+    Bytes.signWith specOps Hb (serScalar r₁ ++ serScalar r₂) (serScalar d) m.1 aggnonce
         (pm.map fun e => e.1.1) (pm.map fun e => e.2.1) pubnonces =
       (sign secp256k1X.ops H (r₁, r₂) d m (parseNonce specOps aggnonce) pm
         (pubnonces.map (parseNonce specOps))).map serScalar := by
   rw [sign_val hH]
-  unfold Bytes.sign
+  unfold Bytes.signWith
   have h32 : (serScalar r₁).length = 32 := by simp [serScalar]
   have hlen : (serScalar r₁ ++ serScalar r₂).length = 64 := by
     rw [List.length_append]
@@ -431,7 +443,7 @@ theorem sign_bytes {H : Hashes n Point B32 B32} (hH : Agree H hashes) (r₁ r₂
       by_cases h0 : 0 < pubnonces.length
       · exact Or.inl (Or.inl (Or.inl (Or.inr fun h => hw ⟨h0, h⟩)))
       · exact Or.inl (Or.inl (Or.inl (Or.inl h0)))
-    have hnone : sign specOps hashes (r₁, r₂) d m.1 (parseNonce specOps aggnonce) (vals pm)
+    have hnone : sign specOps Hb (r₁, r₂) d m.1 (parseNonce specOps aggnonce) (vals pm)
         (pubnonces.map (parseNonce specOps)) = none := by
       rw [sign_eq, signPre_eq_none]
       · rfl
@@ -445,6 +457,18 @@ theorem sign_bytes {H : Hashes n Point B32 B32} (hH : Agree H hashes) (r₁ r₂
             rw [h, hp]
             rfl
     simp only [hwf, Bool.false_and, Bool.false_eq_true, ↓reduceIte, hnone, Option.map_none]
+
+/-- **`Sign` on bytes is `Sign` of the instance**: for the encodings of the
+secret nonce and the secret key, a 32-byte message, 32-byte public keys and
+messages, and any byte arrays for the aggregate nonce and the public nonces,
+which are parsed. -/
+theorem sign_bytes {H : Hashes n Point B32 B32} (hH : Agree H hashes) (r₁ r₂ d : ZMod n)
+    (m : B32) (aggnonce : Bytes) (pm : List (B32 × B32)) (pubnonces : List Bytes) :
+    Bytes.sign specOps (serScalar r₁ ++ serScalar r₂) (serScalar d) m.1 aggnonce
+        (pm.map fun e => e.1.1) (pm.map fun e => e.2.1) pubnonces =
+      (sign secp256k1X.ops H (r₁, r₂) d m (parseNonce specOps aggnonce) pm
+        (pubnonces.map (parseNonce specOps))).map serScalar :=
+  signWith_bytes hH r₁ r₂ d m aggnonce pm pubnonces
 
 /-! ## The hash functions as functions to 256-bit values, and `NonceGen` -/
 

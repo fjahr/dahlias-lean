@@ -147,6 +147,38 @@ def verify (pks msgs : List Bytes) (sig : Bytes) : Bool :=
     | some s => Dahlias.verify O hashes (pks.zip msgs) (sig.take 32, s)
     | none => false
 
+/-- `Sign` with the hash functions `H` in place of the tagged hashes of
+BIP 459. The games with the byte interface use it with the challenge hash as
+a random oracle. -/
+def signWith (H : Hashes n Point Bytes Bytes) (secnonce sk m aggnonce : Bytes)
+    (pks msgs pubnonces : List Bytes) : Option Bytes :=
+  if wellFormed pks msgs pubnonces.length && is32 m && secnonce.length == 64 then
+    match scalar (secnonce.take 32), scalar (secnonce.drop 32), scalar sk with
+    | some r₁, some r₂, some d =>
+      (Dahlias.sign O H (r₁, r₂) d m (parseNonce O aggnonce) (pks.zip msgs)
+        (pubnonces.map (parseNonce O))).map serScalar
+    | _, _, _ => none
+  else none
+
+/-- `Sign` is `signWith` for the tagged hashes. -/
+theorem sign_eq_signWith (secnonce sk m aggnonce : Bytes) (pks msgs pubnonces : List Bytes) :
+    sign O secnonce sk m aggnonce pks msgs pubnonces =
+      signWith O hashes secnonce sk m aggnonce pks msgs pubnonces :=
+  rfl
+
+/-- `Verify` with the hash functions `H` in place of the tagged hashes of
+BIP 459. -/
+def verifyWith (H : Hashes n Point Bytes Bytes) (pks msgs : List Bytes) (sig : Bytes) : Bool :=
+  wellFormed pks msgs pks.length && sig.length == 64 &&
+    match scalar (sig.drop 32) with
+    | some s => Dahlias.verify O H (pks.zip msgs) (sig.take 32, s)
+    | none => false
+
+/-- `Verify` is `verifyWith` for the tagged hashes. -/
+theorem verify_eq_verifyWith (pks msgs : List Bytes) (sig : Bytes) :
+    verify O pks msgs sig = verifyWith O hashes pks msgs sig :=
+  rfl
+
 /-- `TweakSK` on a 32-byte secret key and tweak. -/
 def tweakSK (sk t : Bytes) (xonly : Bool) : Option Bytes :=
   match scalar sk, scalar t with

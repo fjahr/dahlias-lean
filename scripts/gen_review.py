@@ -150,6 +150,18 @@ SECTIONS = [
         "sign_bytes", "length_sha256", "int256", "sigHash256", "hashes_sig_eq_redFin",
         "auxHash", "nonceInput", "nonceHash256", "nonceInput_injective", "nonceGen_eq",
         "nonceGen_sk_eq"])]),
+    ("The byte interface",
+     "`Dahlias/BytesGame.lean`. The adversary sends the arguments of `Sign` and its forgery as "
+     "byte arrays. The signer runs `Sign` on bytes and the game `Verify` on bytes, with the "
+     "challenge hash as an oracle. The bounds are for the adversaries that parse.",
+     [("Dahlias/Bytes.lean", ["signWith", "verifyWith"]),
+      ("Dahlias/BytesGame.lean",
+       ["transl", "sumTr", "to32", "pairs32", "hashesB", "AdvQB", "AdvRB", "ForgeryB",
+        "toForgery", "trB", "challengerB", "WinsB", "hashCostB", "HashBoundB", "AdversaryB",
+        "forgeExperimentB", "toStruct", "challengerEB", "NAdversaryB", "SkAdversaryB",
+        "nonceGenExperimentB", "nonceGenSkExperimentB", "nonceGenCtrExperimentB", "toStructN",
+        "toStructSk", "bytesGame_unforgeable_256", "bytesGame_nonceGen_unforgeable_256",
+        "bytesGame_nonceGenSk_unforgeable_256", "bytesGame_nonceGenCtr_unforgeable_256"])]),
 ]
 
 
