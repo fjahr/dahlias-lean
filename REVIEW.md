@@ -98,7 +98,7 @@ What BIP 459 says about correctness and security, and the theorem for it.
 
 ### Mutants of the model
 
-`scripts/mutate_model.py` changes one definition at a time in a copy of the project and builds it. A mutant that still built would show that no theorem depends on the detail it changes. All ten fail. A second CI workflow runs it on every push. Lake does not build what depends on a module that failed, so the table names the declarations nearest to the changed definition, which are often lemmas and not main theorems.
+`scripts/mutate_model.py` changes one definition at a time in a copy of the project and builds it. A mutant that still built would show that no theorem depends on the detail it changes. All 17 fail. A second CI workflow runs it on every push. Lake does not build what depends on a module that failed, so the table names the declarations nearest to the changed definition, which are often lemmas and not main theorems.
 
 | Mutant | Fails in |
 |---|---|
@@ -112,6 +112,13 @@ What BIP 459 says about correctness and security, and the theorem for it.
 | The derived nonce of a single-party signature ignores `r₂` | `derived_couple`, `logInv_step` |
 | `Sign` does not negate the nonce for an `R` with odd y | `partialSigVerify_sign`, `sign_eq`, `sign_vectors` |
 | `Verify` does not check that the public keys lift | `verify_sigAgg_of_partialSigVerify` |
+| The game with hash outputs verifies a forgery with the challenges `0` | `forgeAdvantageH_le` |
+| The nonce hash does not get the nonce index, so `r₁ = r₂` | `noncePt_injective` |
+| The adversary can set the `extra_in` of a slot that is open | `sel_couple` |
+| The game with `NonceGen` and hash outputs verifies a forgery with the challenges `0` | `nonceGenExperimentH_lift`, `nonceGenExperimentH_le` |
+| A lazily sampled oracle answers a repeated query with a new value | `evalLazy_toTree` |
+| `rand` is masked with the key `1` and not with the secret key in the game with a counter | `nonceGenCtr_advantage`, `nonceGenCtrAdvantageH_le` |
+| The forger of the game with a counter does not check that its message is new | `forgeTail_wins`, `hashBound_forgeTail` |
 
 For two of BIP 459's checks there is more than a proof that fails. `msgSwap_wins` is an attack on `Sign` without the message check, and `ros_forgery` is one on `Sign` with the weaker uniqueness check.
 
