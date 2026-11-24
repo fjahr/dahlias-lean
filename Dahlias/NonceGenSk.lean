@@ -7,9 +7,12 @@ With the argument `sk`, BIP 459's `NonceGen` draws `rand'` and uses
 `rand = sk xor hash_BIP0459/aux(rand')` in place of a uniform `rand`.
 
 Here `hash_BIP0459/aux` is a third random oracle `Aux`, which the adversary
-may query, and `mask x` is the map `r ↦ bytes(x) xor r`, any family of
-bijections. `nonceGenSk_advantage`: an adversary that makes at most `qa`
-queries to `Aux` wins this game at most `qs² / |Rp| + qs⋅qa / |Rp|` more often
+may query, and `mask x k` is the map `r ↦ bytes(d) xor r` for the secret key
+`d` that `NonceGen` gets in slot `k`: the signer's key `x` or a key tweaked
+from it. The theorems hold for any family of bijections, so the key of a slot
+can be any function of `x` that is fixed before the game.
+`nonceGenSk_advantage`: an adversary that makes at most `qa` queries to `Aux`
+wins this game at most `qs² / |Rp| + qs⋅qa / |Rp|` more often
 than the adversary that answers those queries itself wins the game of
 `Dahlias.NonceGen`, where `rand` is uniform. The two terms: two slots draw the
 same `rand'`, the adversary queries `Aux` on a `rand'` of the signer.
@@ -44,17 +47,17 @@ def withAux (A : SkAdversary n N E X M Rnd Rp Ex W Coins) :
   fun c P => answerG c.2 (A c.1 P)
 
 variable (A : SkAdversary n N E X M Rnd Rp Ex W Coins) (ρ : W → ZMod n) (e₀ : Ex)
-  (mask : (ZMod n)ˣ → Rnd ≃ Rnd)
+  (mask : (ZMod n)ˣ → Fin qs → Rnd ≃ Rnd)
 
 /-- The game with the `rand` of every slot given by `v`, masked with the
 secret key, and the table `Aux` for the adversary's queries. -/
 def winSk (θ : Rest n N X M Coins × (Rnd × Ex × Bool → W)) (Aux : Rp → Rnd)
     (v : Fin qs → Rnd) : Prop :=
   nonceGenExperiment C nonceCoef N qs (fun c P => answerG Aux (A c P)) ρ e₀
-    ((θ.1, fun k => mask θ.1.1 (v k)), θ.2)
+    ((θ.1, fun k => mask θ.1.1 k (v k)), θ.2)
 
 /-- **The unforgeability game with `NonceGen` and its `sk` argument** on one
-sample: the `rand` of slot `k` is `mask x (Aux (rand' k))`. -/
+sample: the `rand` of slot `k` is `mask x k (Aux (rand' k))`. -/
 def nonceGenSkExperiment
     (ω : ((Rest n N X M Coins × (Rnd × Ex × Bool → W)) × (Fin qs → Rp)) × (Rp → Rnd)) : Prop :=
   winSk C nonceCoef N qs A ρ e₀ mask ω.1.1 ω.2 fun k => ω.2 (ω.1.2 k)
@@ -90,7 +93,7 @@ theorem nonceGenSk_le (qa : ℕ) (hA : ∀ c P, NBound (A c P) qa) :
     (winSk C nonceCoef N qs A ρ e₀ mask)
     (fun θ Aux v => gLog Aux
       (handG θ.2 (challengerE C nonceCoef N qs
-        (nvOf qs ρ fun i => θ.2 (noncePt qs (fun k => mask θ.1.1 (v k)) i))
+        (nvOf qs ρ fun i => θ.2 (noncePt qs (fun k => mask θ.1.1 k (v k)) i))
         (θ.1.1 : ZMod n) θ.1.2.2))
       (A θ.1.2.1 (C.mulG (θ.1.1 : ZMod n))) (⟨0, [], []⟩, fun _ => e₀))
     (fun θ Aux Aux' v h => by
@@ -109,7 +112,7 @@ theorem nonceGenSk_le (qa : ℕ) (hA : ∀ c P, NBound (A c P) qa) :
           prob (fun r : Fin qs → Rnd => nonceGenExperiment C nonceCoef N qs
             (fun c P => answerG a.2 (A c P)) ρ e₀ ((a.1.1, r), a.1.2)) := by
       intro a
-      have h := prob_equiv (Equiv.piCongrRight fun _ : Fin qs => mask a.1.1.1)
+      have h := prob_equiv (Equiv.piCongrRight fun k : Fin qs => mask a.1.1.1 k)
         (fun r : Fin qs → Rnd => nonceGenExperiment C nonceCoef N qs
           (fun c P => answerG a.2 (A c P)) ρ e₀ ((a.1.1, r), a.1.2))
       rw [← h]

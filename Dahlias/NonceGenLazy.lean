@@ -307,7 +307,7 @@ reduced to a scalar, with all random oracles sampled lazily.** The statement
 of `nonceGenSk_unforgeable_hashed` for the forger
 `withStream (withAuxStream …)`, `reductionLazy` and `colliderLazy`. -/
 theorem nonceGenSk_unforgeable_lazy (A : SkAdversaryH n N E X M Rnd Rp Ex W H Coins)
-    (ρ : W → ZMod n) (mask : (ZMod n)ˣ → Rnd ≃ Rnd) [Nonempty Rp] (g : ZMod n → H)
+    (ρ : W → ZMod n) (mask : (ZMod n)ˣ → Fin qs → Rnd ≃ Rnd) [Nonempty Rp] (g : ZMod n → H)
     (hg : ∀ c, red (g c) = c) (gW : (ZMod n)ˣ → W) (hgW : Injective gW)
     (hρ : ∀ u, ρ (gW u) = u) (hN : N < n) (qh qn qa : ℕ) (hA : ∀ c P, NBound (A c P) qa)
     (hG : ∀ c P (Aux : Rp → Rnd), NBound (answerG Aux (A c P)) qn)
@@ -388,7 +388,7 @@ set_option synthInstance.maxSize 4000 in
 /-- **BIP 459's `NonceGen` with its `sk` argument and the challenge hash**:
 `m`-valued random oracles reduced modulo `n`, for `m = 2²⁵⁶`. The forger, the
 reduction and the collision finder sample all random oracles lazily. -/
-theorem nonceGenSk_unforgeable_fin (mask : (ZMod n)ˣ → Rnd ≃ Rnd) [Nonempty Rp] {m : ℕ}
+theorem nonceGenSk_unforgeable_fin (mask : (ZMod n)ˣ → Fin qs → Rnd ≃ Rnd) [Nonempty Rp] {m : ℕ}
     [NeZero m] (hm : n ≤ m) (A : SkAdversaryH n N E X M Rnd Rp Ex (Fin m) (Fin m) Coins)
     (hN : N < n) (qh qn qa : ℕ) (hA : ∀ c P, NBound (A c P) qa)
     (hG : ∀ c P (Aux : Rp → Rnd), NBound (answerG Aux (A c P)) qn)

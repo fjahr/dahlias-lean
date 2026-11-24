@@ -9,7 +9,7 @@ key and a counter value in place of the random value `rand'`. The theorems of
 `Dahlias.NonceGenSk` assume a uniform `rand'` and say nothing about this.
 
 Here the `rand'` of slot `k` is a public value `ctr k`, and these values are
-distinct. Then `rand = mask x (Aux (ctr k))`, where the adversary can compute
+distinct. Then `rand = mask x k (Aux (ctr k))`, where the adversary can compute
 `Aux (ctr k)` and only the secret key `x` hides `rand`. The nonces are still
 fresh values of `hash_BIP0459/nonce`, unless the adversary queries it at a
 `rand`. A `rand` gives the secret key (`unmask`), and the holder of the secret
@@ -31,8 +31,10 @@ uniform nonces.
 The theorems assume that the counter values are distinct, that the secret key
 can be read off a `rand` and the value of the aux hash, as for
 `rand = bytes(x) xor Aux(rand')`, and that there are `qs + 1` distinct
-messages. Every nonce is generated with the secret key `x` itself, as in
-`Dahlias.NonceGenSk`, and not with a tweaked key.
+messages. The key that `NonceGen` gets in slot `k` is `x` or a key tweaked
+from it, as in `Dahlias.NonceGenSk`: `mask x k` is any bijection, but the
+family is fixed before the game. The adversary does not choose the key of a
+slot.
 -/
 
 set_option linter.unusedSectionVars false
@@ -138,27 +140,29 @@ theorem nbound_tally (upd : (q : Q ⊕ D) → SumR R W q → σ → σ)
     | inl x => exact fun r => ih r _ _ (h r)
     | inr z => exact ⟨h.1, fun r => ih r _ _ (h.2 r)⟩
 
-/-- Query the table at the points of a list. -/
-def askList : List D → Alg (Q ⊕ D) (SumR R W) (List W)
+/-- Query the table at the points `pt k` for the `k` of a list, and return
+every `k` with the answer. -/
+def askList {ι : Type} (pt : ι → D) : List ι → Alg (Q ⊕ D) (SumR R W) (List (ι × W))
   | [] => .done []
-  | y :: l => .ask (.inr y) fun a => askList l >>= fun as => .done (a :: as)
+  | k :: l => .ask (.inr (pt k)) fun a => askList pt l >>= fun as => .done ((k, a) :: as)
 
-theorem answerG_askList (G : D → W) (l : List D) :
-    answerG G (askList (Q := Q) (R := R) l) = .done (l.map G) := by
+theorem answerG_askList {ι : Type} (G : D → W) (pt : ι → D) (l : List ι) :
+    answerG G (askList (Q := Q) (R := R) pt l) = .done (l.map fun k => (k, G (pt k))) := by
   induction l with
   | nil => rfl
-  | cons y l ih =>
-    change answerG G (askList l >>= fun as => .done (G y :: as)) = _
+  | cons k l ih =>
+    change answerG G (askList pt l >>= fun as => .done ((k, G (pt k)) :: as)) = _
     rw [answerG_bind, ih]
     rfl
 
-theorem nbound_askList (l : List D) :
-    NBound (askList (Q := Q) (R := R) (W := W) l) l.length := by
+theorem nbound_askList {ι : Type} (pt : ι → D) (l : List ι) :
+    NBound (askList (Q := Q) (R := R) (W := W) pt l) l.length := by
   induction l with
   | nil => trivial
-  | cons y l ih =>
+  | cons k l ih =>
     refine ⟨Nat.succ_pos _, fun a => ?_⟩
-    have := NBound.bind (g := fun as => (.done (a :: as) : Alg (Q ⊕ D) (SumR R W) (List W)))
+    have := NBound.bind
+      (g := fun as => (.done ((k, a) :: as) : Alg (Q ⊕ D) (SumR R W) (List (ι × W))))
       (b := 0) ih fun as => trivial
     simpa using this
 
@@ -236,13 +240,15 @@ def obsUpd {D₁ W₁ : Type} : (q : (AdvQ n N E X M ⊕ Ex) ⊕ D₁) → SumR 
   | .inl (.inr _), _, o => o
   | .inr z, _, o => (z :: o.1, o.2)
 
-variable (unmask : Rnd → Rnd → Option (ZMod n)ˣ) (msgs : Fin (qs + 1) → M) (ctr : Fin qs → Rp)
+variable (unmask : Fin qs → Rnd → Rnd → Option (ZMod n)ˣ) (msgs : Fin (qs + 1) → M)
+  (ctr : Fin qs → Rp)
 
 /-- The secret key, from the queries to the nonce hash and the values of the
 aux hash at the counters: the first candidate that matches the public key. -/
-def findKey (P : E) (log : List (Rnd × Ex × Bool)) (as : List Rnd) : Option (ZMod n)ˣ :=
+def findKey (P : E) (log : List (Rnd × Ex × Bool)) (as : List (Fin qs × Rnd)) :
+    Option (ZMod n)ˣ :=
   (log.product as).findSome? fun za =>
-    (unmask za.1.1 za.2).filter fun x' : (ZMod n)ˣ => decide (C.mulG (x' : ZMod n) = P)
+    (unmask za.2.1 za.1.1 za.2.2).filter fun x' : (ZMod n)ˣ => decide (C.mulG (x' : ZMod n) = P)
 
 /-- A forgery by the holder of the secret key `x'`: a signature with the nonce
 `1` for the key itself and the first of the messages `msgs` whose list the
@@ -270,8 +276,8 @@ a new message. -/
 def keyForger (A : SkAdversary n N E X M Rnd Rp Ex W Coins) :
     SkAdversary n N E X M Rnd Rp Ex W Coins := fun c P =>
   tally (liftUpd (obsUpd N)) (A c P) ([], []) >>= fun out =>
-    askList ((List.finRange qs).map ctr) >>= fun as =>
-      match findKey C unmask P out.2.1 as with
+    askList ctr (List.finRange qs) >>= fun as =>
+      match findKey C qs unmask P out.2.1 as with
       | none => .done out.1
       | some x' => liftQ (liftQ (liftQ (forgeTail C N qs msgs (x' : ZMod n) out.2.2 out.1)))
 
@@ -379,25 +385,25 @@ end Run
 
 /-! ### The forger wins when the adversary queries the nonce hash at a secret point -/
 
-variable (mask : (ZMod n)ˣ → Rnd ≃ Rnd)
+variable (mask : (ZMod n)ˣ → Fin qs → Rnd ≃ Rnd)
 
 omit [DecidableEq X] [DecidableEq M] in
 /-- A candidate from a query at a secret point is the secret key. -/
-theorem findKey_eq (hunmask : ∀ x a, unmask (mask x a) a = some x) (x : (ZMod n)ˣ)
-    (log : List (Rnd × Ex × Bool)) (as : List Rnd) (a : Rnd) (ha : a ∈ as)
-    (hz : mask x a ∈ log.map Prod.fst) :
-    findKey C unmask (C.mulG (x : ZMod n)) log as = some x := by
+theorem findKey_eq (hunmask : ∀ x k a, unmask k (mask x k a) a = some x) (x : (ZMod n)ˣ)
+    (log : List (Rnd × Ex × Bool)) (as : List (Fin qs × Rnd)) (k : Fin qs) (a : Rnd)
+    (ha : (k, a) ∈ as) (hz : mask x k a ∈ log.map Prod.fst) :
+    findKey C qs unmask (C.mulG (x : ZMod n)) log as = some x := by
   obtain ⟨z, hz, hz1⟩ := List.mem_map.mp hz
-  cases hf : findKey C unmask (C.mulG (x : ZMod n)) log as with
+  cases hf : findKey C qs unmask (C.mulG (x : ZMod n)) log as with
   | none =>
     unfold findKey at hf
     rw [List.findSome?_eq_none_iff] at hf
-    have := hf (z, a) (List.pair_mem_product.mpr ⟨hz, ha⟩)
+    have := hf (z, (k, a)) (List.pair_mem_product.mpr ⟨hz, ha⟩)
     simp [hz1, hunmask] at this
   | some y =>
     unfold findKey at hf
     obtain ⟨za, -, hy⟩ := List.exists_of_findSome?_eq_some hf
-    cases hu : unmask za.1.1 za.2 with
+    cases hu : unmask za.2.1 za.1.1 za.2.2 with
     | none => simp [hu] at hy
     | some w =>
       simp only [hu, Option.filter_some] at hy
@@ -475,10 +481,11 @@ variable (e₀ : Ex) (A : SkAdversary n N E X M Rnd Rp Ex W Coins)
 
 /-- **A query to the nonce hash at a secret point makes the forger win**, in
 the game with any nonce values. -/
-theorem winE_keyForger (hunmask : ∀ x a, unmask (mask x a) a = some x) (hmsgs : Injective msgs)
+theorem winE_keyForger (hunmask : ∀ x k a, unmask k (mask x k a) a = some x)
+    (hmsgs : Injective msgs)
     (hN : 0 < N) (x : (ZMod n)ˣ) (c : Coins) (T : SigIn N X M → ZMod n)
     (G : Rnd × Ex × Bool → W) (Aux : Rp → Rnd) (nv : Fin qs → Ex → SecNonce n)
-    (hbad : ∃ k, mask x (Aux (ctr k)) ∈
+    (hbad : ∃ k, mask x k (Aux (ctr k)) ∈
       (gLog G (challengerE C nonceCoef N qs nv (x : ZMod n) T)
         (answerG Aux (A c (C.mulG (x : ZMod n)))) (⟨0, [], []⟩, fun _ => e₀)).map Prod.fst) :
     winE C nonceCoef N qs (fun c P => answerG Aux (keyForger C N qs unmask msgs ctr A c P)) e₀
@@ -487,10 +494,10 @@ theorem winE_keyForger (hunmask : ∀ x a, unmask (mask x a) a = some x) (hmsgs 
   obtain ⟨o', hrun, hlog, hcl, hinv⟩ := run_tally_obs C nonceCoef N qs (x : ZMod n) nv T G
     (answerG Aux (A c (C.mulG (x : ZMod n)))) ([], []) (⟨0, [], []⟩, fun _ => e₀)
     ⟨List.nodup_nil, by simp, Nat.zero_le _⟩ ⟨le_rfl, by simp⟩
-  have hkey : findKey C unmask (C.mulG (x : ZMod n)) o'.1
-      (((List.finRange qs).map ctr).map Aux) = some x := by
-    refine findKey_eq C unmask mask hunmask x _ _ (Aux (ctr k))
-      (List.mem_map.mpr ⟨ctr k, List.mem_map.mpr ⟨k, List.mem_finRange k, rfl⟩, rfl⟩) ?_
+  have hkey : findKey C qs unmask (C.mulG (x : ZMod n)) o'.1
+      ((List.finRange qs).map fun k => (k, Aux (ctr k))) = some x := by
+    refine findKey_eq C qs unmask mask hunmask x _ _ k (Aux (ctr k))
+      (List.mem_map.mpr ⟨k, List.mem_finRange k, rfl⟩) ?_
     obtain ⟨z, hz, hz1⟩ := List.mem_map.mp hk
     exact List.mem_map.mpr ⟨z, hlog z (Or.inr hz), hz1⟩
   set res := (answerG G (answerG Aux (A c (C.mulG (x : ZMod n))))).run
@@ -522,7 +529,7 @@ variable (ρ : W → ZMod n)
 
 /-- **The unforgeability game with `NonceGen`, its `sk` argument and a counter
 in place of `rand'`** on one sample: the `rand` of slot `k` is
-`mask x (Aux (ctr k))`. The counter values `ctr k` are public. The game is the
+`mask x k (Aux (ctr k))`. The counter values `ctr k` are public. The game is the
 one of `Dahlias.NonceGenSk` with them in place of the uniform values
 `rand'`. -/
 def nonceGenCtrExperiment
@@ -563,7 +570,7 @@ for the reduction modulo the group order.
 The nonces are fresh values of the nonce hash unless the adversary queries it
 at a `rand`, and a `rand` gives the secret key. -/
 theorem nonceGenCtr_advantage (hctr : Injective ctr)
-    (hunmask : ∀ x a, unmask (mask x a) a = some x) (hmsgs : Injective msgs) (hN : 0 < N)
+    (hunmask : ∀ x k a, unmask k (mask x k a) a = some x) (hmsgs : Injective msgs) (hN : 0 < N)
     (g : (ZMod n)ˣ → W) (hg : Injective g) (hρ : ∀ u, ρ (g u) = u) :
     nonceGenCtrAdvantage C nonceCoef N qs ctr mask e₀ A ρ ≤
       forgeAdvantage C nonceCoef N qs (withTable N (withAux N A)) +
@@ -577,7 +584,7 @@ theorem nonceGenCtr_advantage (hctr : Injective ctr)
   have h0 : nonceGenCtrAdvantage C nonceCoef N qs ctr mask e₀ A ρ =
       prob (fun s : (Rest n N X M Coins × (Rp → Rnd)) × (Rnd × Ex × Bool → W) =>
         winE C nonceCoef N qs (fun c P => answerG s.1.2 (A c P)) e₀ s.1.1 s.2
-          (nvOf qs ρ fun i => s.2 (noncePt qs (fun k => mask s.1.1.1 (s.1.2 (ctr k))) i))) := by
+          (nvOf qs ρ fun i => s.2 (noncePt qs (fun k => mask s.1.1.1 k (s.1.2 (ctr k))) i))) := by
     unfold nonceGenCtrAdvantage
     rw [← prob_equiv swapLast (nonceGenCtrExperiment C nonceCoef N qs ctr mask e₀ A ρ)]
     rfl
@@ -585,44 +592,47 @@ theorem nonceGenCtr_advantage (hctr : Injective ctr)
   have h1 := prob_le_add
     (p := fun s : (Rest n N X M Coins × (Rp → Rnd)) × (Rnd × Ex × Bool → W) =>
       winE C nonceCoef N qs (fun c P => answerG s.1.2 (A c P)) e₀ s.1.1 s.2
-        (nvOf qs ρ fun i => s.2 (noncePt qs (fun k => mask s.1.1.1 (s.1.2 (ctr k))) i)))
-    (q := fun s => ¬Injective fun k => mask s.1.1.1 (s.1.2 (ctr k)))
-    (r := fun s => (Injective fun k => mask s.1.1.1 (s.1.2 (ctr k))) ∧
+        (nvOf qs ρ fun i => s.2 (noncePt qs (fun k => mask s.1.1.1 k (s.1.2 (ctr k))) i)))
+    (q := fun s => ¬Injective fun k => mask s.1.1.1 k (s.1.2 (ctr k)))
+    (r := fun s => (Injective fun k => mask s.1.1.1 k (s.1.2 (ctr k))) ∧
       winE C nonceCoef N qs (fun c P => answerG s.1.2 (A c P)) e₀ s.1.1 s.2
-        (nvOf qs ρ fun i => s.2 (noncePt qs (fun k => mask s.1.1.1 (s.1.2 (ctr k))) i)))
+        (nvOf qs ρ fun i => s.2 (noncePt qs (fun k => mask s.1.1.1 k (s.1.2 (ctr k))) i)))
     fun s hs => by
-      by_cases h : Injective fun k => mask s.1.1.1 (s.1.2 (ctr k))
+      by_cases h : Injective fun k => mask s.1.1.1 k (s.1.2 (ctr k))
       · exact Or.inr ⟨h, hs⟩
       · exact Or.inl h
   have h2 : prob (fun s : (Rest n N X M Coins × (Rp → Rnd)) × (Rnd × Ex × Bool → W) =>
-      ¬Injective fun k => mask s.1.1.1 (s.1.2 (ctr k))) ≤ (qs : ℝ) ^ 2 / Fintype.card Rnd := by
+      ¬Injective fun k => mask s.1.1.1 k (s.1.2 (ctr k))) ≤ (qs : ℝ) ^ 2 / Fintype.card Rnd := by
     rw [prob_fst (fun a : Rest n N X M Coins × (Rp → Rnd) =>
-      ¬Injective fun k => mask a.1.1 (a.2 (ctr k)))]
+      ¬Injective fun k => mask a.1.1 k (a.2 (ctr k)))]
     refine prob_prod_le' _ _ (by positivity) fun θ => ?_
-    have hm : (fun Aux : Rp → Rnd => ¬Injective fun k => mask θ.1 (Aux (ctr k))) =
-        fun Aux => ¬Injective fun k => Aux (ctr k) :=
-      funext fun Aux => propext (not_congr ((mask θ.1).injective.of_comp_iff _))
-    rw [hm, prob_comp_injective ctr hctr (fun v : Fin qs → Rnd => ¬Injective v)]
-    exact prob_not_injective
+    -- the values of the aux hash at the counters are independent and uniform, and so are
+    -- their images under the bijections of the slots
+    have hm := prob_equiv (Equiv.piCongrRight fun k : Fin qs => mask θ.1 k)
+      (fun u : Fin qs → Rnd => ¬Injective u)
+    refine le_trans (le_of_eq ?_) (prob_not_injective (qs := qs) (R := Rnd))
+    rw [← hm]
+    exact prob_comp_injective ctr hctr (fun v : Fin qs → Rnd =>
+      ¬Injective fun k => mask θ.1 k (v k))
   -- the nonces are fresh values of the nonce hash, unless it is queried at a `rand`
   have h3 : prob (fun s : (Rest n N X M Coins × (Rp → Rnd)) × (Rnd × Ex × Bool → W) =>
-      (Injective fun k => mask s.1.1.1 (s.1.2 (ctr k))) ∧
+      (Injective fun k => mask s.1.1.1 k (s.1.2 (ctr k))) ∧
         winE C nonceCoef N qs (fun c P => answerG s.1.2 (A c P)) e₀ s.1.1 s.2
-          (nvOf qs ρ fun i => s.2 (noncePt qs (fun k => mask s.1.1.1 (s.1.2 (ctr k))) i))) ≤
+          (nvOf qs ρ fun i => s.2 (noncePt qs (fun k => mask s.1.1.1 k (s.1.2 (ctr k))) i))) ≤
       prob (fun s : (Rest n N X M Coins × (Rp → Rnd)) ×
           ((Rnd × Ex × Bool → W) × (Fin qs × Ex × Bool → W)) =>
         winE C nonceCoef N qs (fun c P => answerG s.1.2 (A c P)) e₀ s.1.1 s.2.1
             (nvOf qs ρ s.2.2) ∨
-          ∃ k, mask s.1.1.1 (s.1.2 (ctr k)) ∈
+          ∃ k, mask s.1.1.1 k (s.1.2 (ctr k)) ∈
             (gLog s.2.1 (challengerE C nonceCoef N qs (nvOf qs ρ s.2.2) (s.1.1.1 : ZMod n)
               s.1.1.2.2) (answerG s.1.2 (A s.1.1.2.1 (C.mulG (s.1.1.1 : ZMod n))))
               (⟨0, [], []⟩, fun _ => e₀)).map Prod.fst) + 0 := by
     refine prob_prod_mono _ _ 0 le_rfl fun a => ?_
     rw [add_zero]
-    by_cases hinj : Injective fun k => mask a.1.1 (a.2 (ctr k))
+    by_cases hinj : Injective fun k => mask a.1.1 k (a.2 (ctr k))
     · refine le_trans (prob_mono fun G h => h.2) ?_
-      refine (fresh_values_or_hit (noncePt qs fun k => mask a.1.1 (a.2 (ctr k)))
-        (noncePt_injective qs hinj) (fun z => ∃ k, z.1 = mask a.1.1 (a.2 (ctr k)))
+      refine (fresh_values_or_hit (noncePt qs fun k => mask a.1.1 k (a.2 (ctr k)))
+        (noncePt_injective qs hinj) (fun z => ∃ k, z.1 = mask a.1.1 k (a.2 (ctr k)))
         (fun i => ⟨i.1, rfl⟩)
         (fun G v => winE C nonceCoef N qs (fun c P => answerG a.2 (A c P)) e₀ a.1 G (nvOf qs ρ v))
         (fun G v => gLog G (challengerE C nonceCoef N qs (nvOf qs ρ v) (a.1.1 : ZMod n) a.1.2.2)
@@ -646,7 +656,7 @@ theorem nonceGenCtr_advantage (hctr : Injective ctr)
     (p := fun s : (Rest n N X M Coins × (Rp → Rnd)) ×
         ((Rnd × Ex × Bool → W) × (Fin qs × Ex × Bool → W)) =>
       winE C nonceCoef N qs (fun c P => answerG s.1.2 (A c P)) e₀ s.1.1 s.2.1 (nvOf qs ρ s.2.2) ∨
-        ∃ k, mask s.1.1.1 (s.1.2 (ctr k)) ∈
+        ∃ k, mask s.1.1.1 k (s.1.2 (ctr k)) ∈
           (gLog s.2.1 (challengerE C nonceCoef N qs (nvOf qs ρ s.2.2) (s.1.1.1 : ZMod n)
             s.1.1.2.2) (answerG s.1.2 (A s.1.1.2.1 (C.mulG (s.1.1.1 : ZMod n))))
             (⟨0, [], []⟩, fun _ => e₀)).map Prod.fst)
@@ -697,8 +707,8 @@ theorem nbound_keyForger (qa : ℕ) (hA : ∀ c P, NBound (A c P) qa) (c : Coins
     NBound (keyForger C N qs unmask msgs ctr A c P) (qa + qs) := by
   unfold keyForger
   refine NBound.bind (nbound_tally _ _ _ _ (hA c P)) fun out => ?_
-  refine (NBound.bind (b := 0) (nbound_askList _) fun as => ?_).mono (by simp)
-  cases findKey C unmask P out.2.1 as with
+  refine (NBound.bind (b := 0) (nbound_askList _ _) fun as => ?_).mono (by simp)
+  cases findKey C qs unmask P out.2.1 as with
   | none => trivial
   | some x' => exact nbound_liftQ _ _
 
@@ -712,7 +722,7 @@ theorem nbound_answerG_keyForger (qn : ℕ)
   rw [answerG_bind, answerG_tally]
   refine (NBound.bind (b := 0) (nbound_tally _ _ _ _ (hG c P Aux)) fun out => ?_).mono (by simp)
   rw [answerG_bind, answerG_askList, Alg.done_bind]
-  cases findKey C unmask P out.2.1 (((List.finRange qs).map ctr).map Aux) with
+  cases findKey C qs unmask P out.2.1 ((List.finRange qs).map fun k => (k, Aux (ctr k))) with
   | none => trivial
   | some x' =>
     dsimp only
@@ -736,7 +746,7 @@ theorem hashBound_keyForger (qh : ℕ)
     rw [← tally_fst (obsUpd N) (answerG Aux (A c P)) ([], []), answerG_bind, answerG_bind] at h
     exact h
   · rw [answerG_bind, answerG_askList, Alg.done_bind]
-    cases findKey C unmask P out.2.1 (((List.finRange qs).map ctr).map Aux) with
+    cases findKey C qs unmask P out.2.1 ((List.finRange qs).map fun k => (k, Aux (ctr k))) with
     | none => trivial
     | some x' =>
       dsimp only
@@ -783,7 +793,7 @@ has the terms of `unforgeable_sqrt_lazy_both` twice: for the adversary and for
 the forger that recovers the key when the adversary queries the nonce hash at
 a `rand`. -/
 theorem nonceGenCtr_unforgeable [Inhabited W] [DecidableEq W] [Inhabited Rnd]
-    (hctr : Injective ctr) (hunmask : ∀ x a, unmask (mask x a) a = some x)
+    (hctr : Injective ctr) (hunmask : ∀ x k a, unmask k (mask x k a) a = some x)
     (hmsgs : Injective msgs) (hN0 : 0 < N) (g : (ZMod n)ˣ → W) (hg : Injective g)
     (hρ : ∀ u, ρ (g u) = u) (hN : N < n) (qh qn qa : ℕ) (hA : ∀ c P, NBound (A c P) qa)
     (hG : ∀ c P (Aux : Rp → Rnd), NBound (answerG Aux (A c P)) qn)
@@ -814,7 +824,7 @@ place of `rand'` and hash outputs in `H`** on one sample. -/
 def nonceGenCtrExperimentH
     (ω : (RestH n N X M H Coins × (Rnd × Ex × Bool → W)) × (Rp → Rnd)) : Prop :=
   nonceGenExperimentH C nonceCoef N qs red (fun c P => answerG ω.2 (AH c P)) ρ e₀
-    ((ω.1.1, fun k => mask ω.1.1.1 (ω.2 (ctr k))), ω.1.2)
+    ((ω.1.1, fun k => mask ω.1.1.1 k (ω.2 (ctr k))), ω.1.2)
 
 variable [Fintype H] [DecidableEq H]
 
@@ -840,7 +850,7 @@ theorem nonceGenCtrAdvantageH_le (g : ZMod n → H) (hg : ∀ c, red (g c) = c) 
       (nonceGenCtrExperiment C nonceCoef N qs ctr mask e₀ (liftHashSk N g AH) ρ)]
   refine prob_prod_mono _ _ _ (hashGap_nonneg red g hg _) fun a => ?_
   have h := nonceGenExperimentH_le C nonceCoef N qs red e₀ g hg (fun c P => answerG a.2 (AH c P))
-    ρ qh a.1.1.1 a.1.1.2 (fun k => mask a.1.1.1 (a.2 (ctr k))) a.1.2 (hH _ _ _ _)
+    ρ qh a.1.1.1 a.1.1.2 (fun k => mask a.1.1.1 k (a.2 (ctr k))) a.1.2 (hH _ _ _ _)
   have hl : liftHashN N g (fun c P => answerG a.2 (AH c P)) =
       fun c P => answerG a.2 (liftHashSk N g AH c P) := by
     funext c P
@@ -856,7 +866,7 @@ set_option synthInstance.maxSize 4000 in
 oracles, all sampled lazily by the forgers, the reduction and the collision
 finder. -/
 theorem nonceGenCtr_unforgeable_hashed [Inhabited W] [DecidableEq W] [Inhabited Rnd]
-    (hctr : Injective ctr) (hunmask : ∀ x a, unmask (mask x a) a = some x)
+    (hctr : Injective ctr) (hunmask : ∀ x k a, unmask k (mask x k a) a = some x)
     (hmsgs : Injective msgs) (hN0 : 0 < N) (g : ZMod n → H) (hg : ∀ c, red (g c) = c)
     (gW : (ZMod n)ˣ → W) (hgW : Injective gW) (hρ : ∀ u, ρ (gW u) = u) (hN : N < n)
     (qh qn qa : ℕ) (hA : ∀ c P, NBound (AH c P) qa)
@@ -896,7 +906,7 @@ set_option synthInstance.maxSize 4000 in
 `n`, for `m = 2²⁵⁶`. -/
 theorem nonceGenCtr_unforgeable_fin [Inhabited Rnd] {m : ℕ} [NeZero m] (hm : n ≤ m)
     (AH : SkAdversaryH n N E X M Rnd Rp Ex (Fin m) (Fin m) Coins) (hctr : Injective ctr)
-    (hunmask : ∀ x a, unmask (mask x a) a = some x) (hmsgs : Injective msgs) (hN0 : 0 < N)
+    (hunmask : ∀ x k a, unmask k (mask x k a) a = some x) (hmsgs : Injective msgs) (hN0 : 0 < N)
     (hN : N < n) (qh qn qa : ℕ) (hA : ∀ c P, NBound (AH c P) qa)
     (hG : ∀ c P (Aux : Rp → Rnd), NBound (answerG Aux (AH c P)) qn)
     (hH : ∀ c P G (Aux : Rp → Rnd),

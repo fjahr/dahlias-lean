@@ -530,18 +530,18 @@ theorem nonceGen_eq (O : Ops n Point Bytes) (rand : B32) (extraIn : Bytes) :
   rfl
 
 /-- **`NonceGen` with the `sk` argument, on bytes, derives the nonces as the
-games do**: the secret nonces are `ρ (G (rand, extra_in, i))` with
-`rand = maskXor x (Aux rand')`, for `G = nonceHash256`, `Aux = auxHash` and
-`ρ = redFin (2^256)`. So `maskXor` is the xor of BIP 459's `NonceGen`. -/
-theorem nonceGen_sk_eq (O : Ops n Point Bytes) (x : (ZMod n)ˣ) (rand' : B32)
-    (extraIn : Bytes) :
-    Bytes.nonceGen O rand'.1 (some (serScalar (x : ZMod n))) extraIn =
+games do**, for the secret key `d` as the argument: the secret nonces are
+`ρ (G (rand, extra_in, i))` with `rand = maskXor d (Aux rand')`, for
+`G = nonceHash256`, `Aux = auxHash` and `ρ = redFin (2^256)`. So `maskXor` is
+the xor of BIP 459's `NonceGen`. -/
+theorem nonceGen_sk_eq (O : Ops n Point Bytes) (d : ZMod n) (rand' : B32) (extraIn : Bytes) :
+    Bytes.nonceGen O rand'.1 (some (serScalar d)) extraIn =
       (Dahlias.nonceGen O
-        (redFin (2 ^ 256) (nonceHash256 (maskXor x (auxHash rand'), extraIn, false)))
-        (redFin (2 ^ 256) (nonceHash256 (maskXor x (auxHash rand'), extraIn, true)))).map
+        (redFin (2 ^ 256) (nonceHash256 (maskXor d (auxHash rand'), extraIn, false)))
+        (redFin (2 ^ 256) (nonceHash256 (maskXor d (auxHash rand'), extraIn, true)))).map
           fun (sec, pub) => (serScalar sec.1 ++ serScalar sec.2, serNonce pub) := by
   have h32 : is32 rand'.1 = true := by simp [is32, rand'.2]
-  have hsk : is32 (serScalar (x : ZMod n)) = true := by simp [is32, serScalar]
+  have hsk : is32 (serScalar d) = true := by simp [is32, serScalar]
   unfold Bytes.nonceGen
   simp only [h32, Option.all_some, hsk, Bool.and_true, ↓reduceIte]
   rfl

@@ -133,13 +133,13 @@ def nonceGenExperimentH (A : NAdversaryH n N E X M Rnd Ex W H Coins) (ρ : W →
 
 /-- **The unforgeability game with `NonceGen`, its `sk` argument and hash
 outputs in `H`** on one sample: the `rand` of slot `k` is
-`mask x (Aux (rand' k))`. -/
+`mask x k (Aux (rand' k))`. -/
 def nonceGenSkExperimentH (A : SkAdversaryH n N E X M Rnd Rp Ex W H Coins) (ρ : W → ZMod n)
-    (e₀ : Ex) (mask : (ZMod n)ˣ → Rnd ≃ Rnd)
+    (e₀ : Ex) (mask : (ZMod n)ˣ → Fin qs → Rnd ≃ Rnd)
     (ω : ((RestH n N X M H Coins × (Rnd × Ex × Bool → W)) × (Fin qs → Rp)) × (Rp → Rnd)) :
     Prop :=
   nonceGenExperimentH C nonceCoef N qs red (fun c P => answerG ω.2 (A c P)) ρ e₀
-    ((ω.1.1.1, fun k => mask ω.1.1.1.1 (ω.2 (ω.1.2 k))), ω.1.1.2)
+    ((ω.1.1.1, fun k => mask ω.1.1.1.1 k (ω.2 (ω.1.2 k))), ω.1.1.2)
 
 /-- The adversary's advantage in the game with `NonceGen` and hash outputs in
 `H`. -/
@@ -153,7 +153,7 @@ and hash outputs in `H`. -/
 noncomputable def nonceGenSkAdvantageH [Fintype Coins] [Fintype (SigIn N X M)] [Fintype H]
     [Fintype Rnd] [Fintype Rp] [DecidableEq Rp] [Fintype Ex] [DecidableEq Ex] [DecidableEq Rnd]
     [Fintype W] (A : SkAdversaryH n N E X M Rnd Rp Ex W H Coins) (ρ : W → ZMod n) (e₀ : Ex)
-    (mask : (ZMod n)ˣ → Rnd ≃ Rnd) : ℝ :=
+    (mask : (ZMod n)ˣ → Fin qs → Rnd ≃ Rnd) : ℝ :=
   prob (nonceGenSkExperimentH C nonceCoef N qs red A ρ e₀ mask)
 
 /-! ## From hash outputs to scalars -/
@@ -433,7 +433,7 @@ theorem nonceGen_unforgeable_hashed (A : NAdversaryH n N E X M Rnd Ex W H Coins)
 /-! ### `NonceGen` with the `sk` argument -/
 
 variable (A : SkAdversaryH n N E X M Rnd Rp Ex W H Coins) (ρ : W → ZMod n)
-  (mask : (ZMod n)ˣ → Rnd ≃ Rnd)
+  (mask : (ZMod n)ˣ → Fin qs → Rnd ≃ Rnd)
 
 set_option synthInstance.maxSize 4000 in
 /-- **A hash output reduced to a scalar costs `(|H| - n) / |H|` for every
@@ -452,7 +452,7 @@ theorem nonceGenSkAdvantageH_le (g : ZMod n → H) (hg : ∀ c, red (g c) = c) (
       (nonceGenSkExperiment C nonceCoef N qs (liftHashSk N g A) ρ e₀ mask)]
   refine prob_prod_mono _ _ _ (hashGap_nonneg red g hg _) fun a => ?_
   have h := nonceGenExperimentH_le C nonceCoef N qs red e₀ g hg (fun c P => answerG a.2 (A c P)) ρ
-    qh a.1.1.1.1 a.1.1.1.2 (fun k => mask a.1.1.1.1 (a.2 (a.1.2 k))) a.1.1.2 (hH _ _ _ _)
+    qh a.1.1.1.1 a.1.1.1.2 (fun k => mask a.1.1.1.1 k (a.2 (a.1.2 k))) a.1.1.2 (hH _ _ _ _)
   have hl : liftHashN N g (fun c P => answerG a.2 (A c P)) =
       fun c P => answerG a.2 (liftHashSk N g A c P) := by
     funext c P
