@@ -55,4 +55,14 @@ grep -v '^#print axioms Dahlias.Security.unforgeable_sqrt$' "$tmp/work/Dahlias/S
 cp "$tmp/summary" "$tmp/work/Dahlias/Summary.lean"
 expect_fail 'a printed theorem whose axioms the summary does not check'
 
+fresh
+printf '\nnamespace Other\ntheorem unforgeable_sqrt : True := trivial\nend Other\n' >> "$tmp/work/Dahlias/Tightness.lean"
+sed 's/^#print axioms Dahlias.Security.unforgeable_sqrt$/#print axioms Other.unforgeable_sqrt/' "$tmp/work/Dahlias/Summary.lean" > "$tmp/summary"
+cp "$tmp/summary" "$tmp/work/Dahlias/Summary.lean"
+expect_fail 'a summary that checks another theorem with the same last name'
+
+fresh
+echo 'theorem audit_backdoor : False := by sorry' > "$tmp/work/Dahlias/Back door.lean"
+expect_fail 'a sorry in a file with a space in its name'
+
 exit $fail
