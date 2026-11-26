@@ -65,4 +65,20 @@ fresh
 echo 'theorem audit_backdoor : False := by sorry' > "$tmp/work/Dahlias/Back door.lean"
 expect_fail 'a sorry in a file with a space in its name'
 
+fresh
+sed 's/\(Dahlias: \)\([0-9]* definitions, \)/\10\2/' "$tmp/work/Dahlias/Summary.lean" > "$tmp/summary"
+cp "$tmp/summary" "$tmp/work/Dahlias/Summary.lean"
+expect_fail 'a table of the main results in REVIEW.md that is not the one of the summary'
+
+fresh
+python3 - "$tmp/work/REVIEW.md" <<'EOF'
+import re, sys
+text = open(sys.argv[1]).read()
+blocks = [b for b in re.findall(r'```lean\n.*?\n```\n', text, re.S)
+          if '\ntheorem strongly_binding ' in b]
+assert len(blocks) == 1
+open(sys.argv[1], 'w').write(text.replace(blocks[0], ''))
+EOF
+expect_fail 'a main result whose statement REVIEW.md does not print'
+
 exit $fail

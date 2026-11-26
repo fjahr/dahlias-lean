@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
-"""Print the section "The statements" of REVIEW.md from the sources.
+"""Write the generated parts of REVIEW.md.
 
-Usage: python3 scripts/gen_review.py          rewrite the section in REVIEW.md
+Usage: python3 scripts/gen_review.py          rewrite the parts in REVIEW.md
        python3 scripts/gen_review.py --check  fail if REVIEW.md is out of date
+
+Three parts of REVIEW.md are generated, each between two marker comments:
+
+- the table of the main results with what a reader of each has to read, from
+  the guarded outputs of `#reading` in Dahlias/Summary.lean,
+- the statements of the main results and the definitions behind them, from
+  the sources,
+- the list of the definitions behind all results, from the guarded output of
+  `#surface` in Dahlias/Summary.lean.
 
 A definition is printed with its comment and its body. A theorem, or a
 definition marked "sig", is printed up to its `:=`. Every printed block is a
@@ -14,7 +23,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BEGIN, END = "<!-- statements:begin -->", "<!-- statements:end -->"
+MAIN = ("<!-- main:begin -->", "<!-- main:end -->")
+STATEMENTS = ("<!-- statements:begin -->", "<!-- statements:end -->")
+DEFINITIONS = ("<!-- definitions:begin -->", "<!-- definitions:end -->")
 DECL = r"(?:noncomputable )?(?:def|abbrev|theorem|structure|inductive)"
 
 # (heading, text, [(file, [names])]). A name ending in "!" is printed up to its `:=`.
@@ -27,6 +38,9 @@ SECTIONS = [
        ["Ops", "Hashes", "evenScalar", "signOf", "tweakSK", "tweakPK", "nonceGen", "nonceAgg",
         "coefItems", "getSessionValues", "matchIdxs", "sign", "sigAgg", "partialSigVerify",
         "keySum", "verify"])]),
+    ("Correctness",
+     "`Dahlias/Correctness.lean`. The statement holds for every choice of the hash functions.",
+     [("Dahlias/Correctness.lean", ["Signer", "Signer.pkm", "Signer.pubnonce", "verify_honest"])]),
     ("Oracle algorithms and probabilities",
      "`Dahlias/Alg.lean` and `Dahlias/Prob.lean`. An adversary is a function from coins to a "
      "deterministic algorithm that makes queries. A probability is a fraction of a finite sample "
@@ -41,127 +55,27 @@ SECTIONS = [
         "SignerState", "singleKeys", "singleNcIn", "singleNonce", "singleS", "challengerG",
         "challenger", "Wins", "ForgeSample", "forgeExperimentG", "forgeExperiment",
         "forgeAdvantageG", "forgeAdvantage", "HashBound"])]),
-    ("The single-party signature of the game",
-     "`Dahlias/Single.lean` and `Dahlias/SingleGame.lean`. The game's answer to a `single` "
-     "query is the algorithm `signSingle`.",
-     [("Dahlias/Single.lean", ["singleList", "signSingle"]),
-      ("Dahlias/SingleGame.lean", ["challenger_single"])]),
     ("The AOMDL game",
-     "`Dahlias/Security.lean`, with challenges that have nonzero discrete logarithms, and "
-     "`Dahlias/OmdlStd.lean`, with uniform challenges.",
+     "`Dahlias/Security.lean`. The challenges have nonzero discrete logarithms.",
      [("Dahlias/Security.lean",
        ["OmdlQ", "OmdlR", "OmdlAdversary", "chalLogs", "omdlChallenger", "omdlExperiment",
-        "omdlAdvantage"]),
-      ("Dahlias/OmdlStd.lean",
-       ["chalLogsStd", "omdlChallengerStd", "omdlExperimentStd", "omdlAdvantageStd",
-        "omdlAdvantage_le_std"])]),
+        "omdlAdvantage"])]),
     ("Unforgeability",
-     "`Dahlias/Unforgeability.lean`, `Dahlias/Proofs/Reduction.lean`, "
-     "`Dahlias/LazyReduction.lean` and `Dahlias/LazyCollider.lean`. Of the reduction and the "
-     "collision finder only the types are printed.",
+     "`Dahlias/Unforgeability.lean` and `Dahlias/Proofs/Reduction.lean`. Of the reduction and "
+     "the collision finder only the types are printed.",
      [("Dahlias/Proofs/Reduction.lean", ["ncHash", "IsCollision", "reduction!", "collider!"]),
       ("Dahlias/Unforgeability.lean",
-       ["collisionAdvantage", "NoSingle", "unforgeable", "unforgeable_sqrt"]),
-      ("Dahlias/OmdlStd.lean", ["unforgeable_sqrt_std"]),
-      ("Dahlias/LazyReduction.lean", ["reductionLazy", "unforgeable_sqrt_lazy"]),
-      ("Dahlias/LazyCollider.lean",
-       ["LazyColliderSample", "colliderLazy", "collisionAdvantageLazy",
-        "unforgeable_sqrt_lazy_both"])]),
-    ("The additive term of the bound",
-     "`Dahlias/Tightness.lean`. A forger that makes `q` random oracle queries, no signing "
-     "queries and computes no discrete logarithm.",
-     [("Dahlias/Tightness.lean",
-       ["grindIn", "grindOut", "grindAlg", "grinder", "grinder_hashBound", "grinder_advantage",
-        "grinder_advantage_ge"])]),
-    ("The challenge hash reduced modulo `n`",
-     "`Dahlias/Hashed.lean` and `Dahlias/BytesSecurity.lean`. The random oracle answers with "
-     "hash outputs, which the adversary sees and the signer and the verifier reduce.",
-     [("Dahlias/Hashed.lean",
-       ["AdvRH", "AdversaryH", "challengerH", "ForgeSampleH", "forgeExperimentH",
-        "forgeAdvantageH", "liftHash", "redFin", "liftFin", "unforgeable_sqrt_fin"]),
-      ("Dahlias/BytesSecurity.lean",
-       ["B32", "secp256k1X", "nonceCoef32", "bytes_unforgeable_256", "hash_gap"])]),
-    ("Nonces derived by `NonceGen`",
-     "`Dahlias/Second.lean`, `Dahlias/NonceGen.lean` and `Dahlias/NonceGenSk.lean`. The "
-     "adversary may also query `hash_BIP0459/nonce` and `hash_BIP0459/aux` and set the "
-     "`extra_in` of the next slot.",
-     [("Dahlias/Second.lean", ["SumR", "answerG", "NBound"]),
-      ("Dahlias/NonceGen.lean",
-       ["NAdversary", "withTable", "challengerE", "Rest", "nvOf", "winE", "noncePt",
-        "nonceGenExperiment", "nonceGenAdvantage", "nonceGen_unforgeable"]),
-      ("Dahlias/NonceGenSk.lean",
-       ["SkAdversary", "withAux", "winSk", "nonceGenSkExperiment", "nonceGenSkAdvantage",
-        "nonceGenSk_advantage"])]),
-    ("`NonceGen`, 256-bit hashes and 32-byte values together",
-     "`Dahlias/NonceGenHashed.lean`, `Dahlias/NonceGenLazy.lean` and "
-     "`Dahlias/BytesSecurity.lean`. One game has the nonces of `NonceGen` and a challenge hash "
-     "whose outputs the adversary sees and the signer and the verifier reduce. The forgers "
-     "`withStream` and `withAuxStream` answer the queries to the hash functions of `NonceGen` "
-     "from values in their coins.",
-     [("Dahlias/NonceGenHashed.lean",
-       ["mapAns", "sumAns", "NAdversaryH", "SkAdversaryH", "challengerEH", "RestH",
-        "nonceGenExperimentH", "nonceGenSkExperimentH", "nonceGenAdvantageH",
-        "nonceGenSkAdvantageH", "hashAns", "liftHashN", "liftHashSk"]),
-      ("Dahlias/Second.lean", ["answerLazy"]),
-      ("Dahlias/NonceGenLazy.lean",
-       ["withStream", "withAuxStream", "nonceGen_unforgeable_fin",
-        "nonceGenSk_unforgeable_fin"]),
-      ("Dahlias/BytesSecurity.lean",
-       ["card_B32", "bytes_nonceGenSk_unforgeable_256", "bytes_nonceGen_unforgeable_256"])]),
-    ("`NonceGen` with a counter in place of `rand'`",
-     "`Dahlias/NonceGenCounter.lean` and `Dahlias/BytesSecurity.lean`. The signer runs "
-     "`NonceGen` with its secret key and a public counter value, and no random value. The "
-     "bound is for two forgers: the adversary, and `keyForger`, which recovers the secret key "
-     "when the adversary queries the nonce hash at a `rand`.",
-     [("Dahlias/Second.lean", ["liftQ"]),
-      ("Dahlias/NonceGenCounter.lean",
-       ["tally", "liftUpd", "askList", "SignedQ", "trackOf", "signedList", "obsUpd", "findKey",
-        "forgeTail", "keyForger", "nonceGenCtrExperiment", "nonceGenCtrAdvantage",
-        "nonceGenCtr_advantage", "lazyBound", "nonceGenCtrExperimentH", "nonceGenCtrAdvantageH",
-        "nonceGenCtr_unforgeable_fin"]),
-      ("Dahlias/BytesSecurity.lean",
-       ["xor32", "ser32", "maskXor", "unmaskXor", "unmaskXor_maskXor",
-        "bytes_nonceGenCtr_unforgeable_256"])]),
+       ["collisionAdvantage", "NoSingle", "unforgeable", "unforgeable_sqrt"])]),
     ("Binding",
-     "`Dahlias/Binding.lean`, and `Dahlias/BindingHashed.lean` for the oracle with hash outputs.",
+     "`Dahlias/Binding.lean`, with the deterministic query algorithms of "
+     "`Dahlias/QueryRun.lean`.",
      [("Dahlias/QueryRun.lean", ["QTree", "eval", "flog", "fresh"]),
-      ("Dahlias/Binding.lean", ["BindAdversary", "bindExperiment", "strongly_binding"]),
-      ("Dahlias/BindingHashed.lean", ["BindAdversaryH", "bindExperimentH", "strongly_binding_fin"]),
-      ("Dahlias/BytesSecurity.lean", ["bytes_strongly_binding_256"])]),
+      ("Dahlias/Binding.lean", ["BindAdversary", "bindExperiment", "strongly_binding"])]),
     ("Finding a disruptive signer",
-     "`Dahlias/Correctness.lean` and `Dahlias/Blame.lean`. The statements hold for every choice "
-     "of the hash functions.",
-     [("Dahlias/Correctness.lean",
-       ["partialSigVerify_sign", "verify_sigAgg_of_partialSigVerify"]),
-      ("Dahlias/Blame.lean",
+     "`Dahlias/Blame.lean`. The statements hold for every choice of the hash functions.",
+     [("Dahlias/Blame.lean",
        ["partialSigVerify_iff_eq_sign", "exists_partialSigVerify_eq_false",
         "verify_eq_false_of_one_bad"])]),
-    ("The bytes",
-     "`Dahlias/Bytes.lean` and `Dahlias/Encoding.lean`. `Sign` and `Verify` on bytes parse "
-     "their inputs and call the model. `NonceGen` on bytes derives the nonces as the games do.",
-     [("Dahlias/Bytes.lean",
-       ["specOps", "cbytes", "cpoint", "parseNonce", "scalar", "scalarWrap", "hashes",
-        "wellFormed", "nonceGen", "sign", "verify"]),
-      ("Dahlias/BytesSecurity.lean", ["vals", "Agree"]),
-      ("Dahlias/Encoding.lean",
-       ["cpoint_eq_some_iff", "matchIdxs_bytes", "sigInput", "nonceCoefInput", "Pairs32",
-        "sigInput_injective", "Items32", "nonceCoefInput_injective", "nonceCoefBytes",
-        "collision_bytes", "verify_bytes",
-        "sign_bytes", "length_sha256", "int256", "sigHash256", "hashes_sig_eq_redFin",
-        "auxHash", "nonceInput", "nonceHash256", "nonceInput_injective", "nonceGen_eq",
-        "nonceGen_sk_eq"])]),
-    ("The byte interface",
-     "`Dahlias/BytesGame.lean`. The adversary sends the arguments of `Sign` and its forgery as "
-     "byte arrays. The signer runs `Sign` on bytes and the game `Verify` on bytes, with the "
-     "challenge hash as an oracle. The bounds are for the adversaries that parse.",
-     [("Dahlias/Bytes.lean", ["signWith", "verifyWith"]),
-      ("Dahlias/BytesGame.lean",
-       ["transl", "sumTr", "to32", "pairs32", "hashesB", "AdvQB", "AdvRB", "ForgeryB",
-        "toForgery", "trB", "challengerB", "WinsB", "hashCostB", "HashBoundB", "AdversaryB",
-        "forgeExperimentB", "toStruct", "challengerEB", "NAdversaryB", "SkAdversaryB",
-        "nonceGenExperimentB", "nonceGenSkExperimentB", "nonceGenCtrExperimentB", "toStructN",
-        "toStructSk", "bytesGame_unforgeable_256", "bytesGame_nonceGen_unforgeable_256",
-        "bytesGame_nonceGenSk_unforgeable_256", "bytesGame_nonceGenCtr_unforgeable_256"])]),
 ]
 
 
@@ -203,37 +117,74 @@ SURFACE = (
     "printed above have to be read in the sources.")
 
 
-def surface():
-    """The definitions behind the results, from the guarded output in Dahlias/Summary.lean."""
-    summary = (ROOT / "Dahlias/Summary.lean").read_text()
-    end = summary.find("\n-/\n#guard_msgs in\n#surface ")
-    start = summary.rfind("/--\ninfo: ", 0, end)
-    if end < 0 or start < 0:
-        sys.exit("Dahlias/Summary.lean has no guarded #surface")
+READING = re.compile(
+    r"/-! ### ([^\n]*) -/\n\n/--\ninfo: (.*?)\n-/\n#guard_msgs in\n#reading ([^\n]*)\n", re.S)
+COUNT = re.compile(r"Dahlias: (\d+) definitions, (\d+) lines")
+
+
+def modules(lines):
+    """Lines `module: name, name, …` as bullet points."""
     out = []
-    for line in summary[start + len("/--\ninfo: "):end].split("\n"):
+    for line in lines:
         module, names = line.split(": ", 1)
         shown = ", ".join(f"`{n.removeprefix('Dahlias.')}`" for n in names.split(", "))
         out.append(f"- `{module.replace('.', '/')}.lean`: {shown}")
     return out
 
 
-def render():
-    out = [BEGIN, ""]
+def render_main():
+    """The main results with what a reader of each has to read."""
+    summary = (ROOT / "Dahlias/Summary.lean").read_text()
+    results = READING.findall(summary)
+    if not results:
+        sys.exit("Dahlias/Summary.lean has no guarded #reading")
+    table = ["| Main result | Theorem | Definitions | Lines |", "|---|---|---|---|"]
+    lists = []
+    for title, info, names in results:
+        count, *rest = info.split("\n")
+        m = COUNT.fullmatch(count)
+        if not m:
+            sys.exit(f"unexpected #reading output for {title}")
+        theorems = ", ".join(f"`{n.split('.')[-1]}`" for n in names.split())
+        if title == "All main results":
+            title, theorems = "All of them", ""
+        else:
+            lists += [f"**{title}**", ""] + modules(rest) + [""]
+        table.append(f"| {title} | {theorems} | {m.group(1)} | {m.group(2)} |")
+    return "\n".join([MAIN[0], ""] + table + ["", "The definitions of the project behind each "
+                      "main result, by file:", ""] + lists + [MAIN[1]])
+
+
+def render_statements():
+    out = [STATEMENTS[0], ""]
     for heading, text, groups in SECTIONS:
         out += [f"### {heading}", "", text, ""]
         for path, names in groups:
             for name in names:
                 out += ["```lean", block(path, name), "```", ""]
-    out += ["### Every definition behind the results", "", SURFACE, ""] + surface() + [""]
-    out.append(END)
+    out.append(STATEMENTS[1])
     return "\n".join(out)
+
+
+def render_definitions():
+    """The definitions behind the results, from the guarded output in Dahlias/Summary.lean."""
+    summary = (ROOT / "Dahlias/Summary.lean").read_text()
+    end = summary.find("\n-/\n#guard_msgs in\n#surface ")
+    start = summary.rfind("/--\ninfo: ", 0, end)
+    if end < 0 or start < 0:
+        sys.exit("Dahlias/Summary.lean has no guarded #surface")
+    lines = summary[start + len("/--\ninfo: "):end].split("\n")
+    return "\n".join([DEFINITIONS[0], "", "## Every definition behind the results", "", SURFACE,
+                      ""] + modules(lines) + ["", DEFINITIONS[1]])
 
 
 def main():
     review = (ROOT / "REVIEW.md").read_text()
-    i, j = review.index(BEGIN), review.index(END) + len(END)
-    new = review[:i] + render() + review[j:]
+    new = review
+    for (begin, end), text in ((MAIN, render_main()), (STATEMENTS, render_statements()),
+                               (DEFINITIONS, render_definitions())):
+        i, j = new.index(begin), new.index(end) + len(end)
+        new = new[:i] + text + new[j:]
     if "--check" in sys.argv:
         if new != review:
             sys.exit("REVIEW.md is out of date: run scripts/gen_review.py")

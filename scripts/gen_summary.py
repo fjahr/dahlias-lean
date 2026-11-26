@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Generate Dahlias/Summary.lean from the axioms Lean reports for the main results.
+"""Generate Dahlias/Summary.lean from the axioms Lean reports for the results.
 
 Usage: python3 scripts/gen_summary.py > Dahlias/Summary.lean  (after `lake build`)
 
-Run it when a main result is added or a definition behind a result changes.
-The generated file then fails the build if the axioms of a result, the axioms
-of the project or the list of definitions behind the results change.
+Run it when a result is added or a definition behind a result changes. The
+generated file then fails the build if the axioms of a result, the axioms of
+the project, the list of definitions behind the results or the reading list of
+a main result change.
 """
 
 import os
@@ -41,7 +42,9 @@ SECTIONS = [
     ("Unforgeability",
      ["Dahlias.Security.unforgeable", "Dahlias.Security.unforgeable_sqrt",
       "Dahlias.Security.secp256k1_unforgeable",
-      "Dahlias.Security.tweakSK_affine", "Dahlias.Security.guesser_advantage_pos"]),
+      "Dahlias.Security.tweakSK_affine", "Dahlias.Security.bipTweakSign_ne_zero",
+      "Dahlias.Security.Tweak.sk_comp", "Dahlias.Security.Tweak.comp_snd_ne_zero",
+      "Dahlias.Security.guesser_hashBound", "Dahlias.Security.guesser_advantage_pos"]),
     ("The AOMDL game with uniform challenges",
      ["Dahlias.Security.omdlAdvantage_mul_le_std", "Dahlias.Security.omdlAdvantage_le_std",
       "Dahlias.Security.unforgeable_sqrt_std"]),
@@ -95,11 +98,13 @@ SECTIONS = [
       "Dahlias.Bytes.cbytes_injective", "Dahlias.Security.collision_bytes",
       "Dahlias.Bytes.cpoint_eq_some_iff", "Dahlias.Bytes.matchIdxs_bytes",
       "Dahlias.Security.sign_bytes", "Dahlias.Security.verify_bytes",
+      "Dahlias.Bytes.hashes_sig", "Dahlias.Bytes.hashes_nonceCoef",
       "Dahlias.Security.length_sha256", "Dahlias.Security.hashes_sig_eq_redFin",
       "Dahlias.Security.nonceInput_injective", "Dahlias.Security.nonceGen_eq",
       "Dahlias.Security.nonceGen_sk_eq"]),
     ("The games with the byte interface",
-     ["Dahlias.Security.signWith_bytes", "Dahlias.Security.verifyWith_bytes",
+     ["Dahlias.Bytes.sign_eq_signWith", "Dahlias.Bytes.verify_eq_verifyWith",
+      "Dahlias.Security.signWith_bytes", "Dahlias.Security.verifyWith_bytes",
       "Dahlias.Security.run_trB", "Dahlias.Security.wins_of_winsB",
       "Dahlias.Security.forgeExperimentB_imp", "Dahlias.Security.nonceGenExperimentB_imp",
       "Dahlias.Security.bytesGame_unforgeable_256",
@@ -108,15 +113,31 @@ SECTIONS = [
       "Dahlias.Security.bytesGame_nonceGenCtr_unforgeable_256"]),
     ("Attacks on misuse and on a weakened `Sign`",
      ["Dahlias.Security.evenScalar_of_nonce_reuse",
-      "Dahlias.Security.evenScalar_of_three_sessions", "Dahlias.Security.msgSwap_wins",
-      "Dahlias.Security.ros_bits", "Dahlias.Security.ros_forgery"]),
+      "Dahlias.Security.evenScalar_of_three_sessions", "Dahlias.Security.sign_eq_signPost",
+      "Dahlias.Security.challengerWith_sign", "Dahlias.Security.msgSwap_wins",
+      "Dahlias.Security.ros_bits", "Dahlias.Security.mulG_effNonce",
+      "Dahlias.Security.ros_forgery"]),
+]
+
+# The main results: one for every property, in its general form. The other
+# results are forms of these for other models of the hash functions and of the
+# nonces, for secp256k1 and for bytes, and facts that support them. REVIEW.md
+# prints the statements of the main results and what a reader of each has to
+# read.
+MAIN = [
+    ("Correctness", ["Dahlias.verify_honest"]),
+    ("Unforgeability", ["Dahlias.Security.unforgeable_sqrt", "Dahlias.Security.unforgeable"]),
+    ("Strong binding", ["Dahlias.Security.strongly_binding"]),
+    ("Finding a disruptive signer",
+     ["Dahlias.partialSigVerify_iff_eq_sign", "Dahlias.exists_partialSigVerify_eq_false",
+      "Dahlias.verify_eq_false_of_one_bad"]),
 ]
 
 HEADER = '''
 /-!
-# Main results and their axioms
+# The results and their axioms
 
-Each check below fails the build if the axioms of a main result change. The
+Each check below fails the build if the axioms of a result change. The
 theorems must depend only on Lean's standard axioms (`propext`,
 `Classical.choice`, `Quot.sound`); a `sorry` would show up as `sorryAx`. This
 includes the results about secp256k1: the order of its generator is checked by
@@ -133,7 +154,7 @@ set_option linter.style.longLine false
 INVENTORY = '''
 /-! ## The axioms of the whole project
 
-The checks above are about the main results. This one is about every
+The checks above are about single results. This one is about every
 declaration of the project: the axioms that its modules declare, and the
 axioms that its declarations depend on. The only axioms of the project are
 the ones of the test vector checks. -/
@@ -145,6 +166,15 @@ SURFACE = '''
 The definitions of the project that the statements of the results above depend
 on, directly or through other definitions, by module. Proofs are not followed.
 `REVIEW.md` lists the same definitions. -/
+'''
+
+READING = '''
+/-! ## What to read for each main result
+
+For every main result, the definitions of the project behind its statement:
+how many there are, how many source lines they have, and their names by
+module. The last check is for all main results together. `REVIEW.md` shows
+these lists. -/
 '''
 
 
@@ -160,12 +190,21 @@ def lean(imports, body):
     return out
 
 
-def guard(imports, command, start):
-    """A guarded command with the message it prints, which must begin with `start`."""
-    msg = lean(imports, command + "\n").strip()
-    if not msg.startswith(start):
-        sys.exit(f"unexpected output of {command.split()[0]}:\n{msg}")
-    return f"\n/--\ninfo: {msg}\n-/\n#guard_msgs in\n{command}\n"
+SEPARATOR = "-- next command --"
+
+
+def guards(imports, commands, start):
+    """Guarded commands with the messages they print, each of which must begin
+    with one of the strings in `start`. One run of Lean for all of them."""
+    out = lean(imports, f'\n#eval IO.println "{SEPARATOR}"\n'.join(commands) + "\n")
+    msgs = [m.strip() for m in out.split(SEPARATOR)]
+    if len(msgs) != len(commands):
+        sys.exit(f"expected {len(commands)} messages, got {len(msgs)}:\n{out}")
+    for command, msg in zip(commands, msgs):
+        if not msg.startswith(start):
+            sys.exit(f"unexpected output of {command.split()[0]}:\n{msg}")
+    return [f"\n/--\ninfo: {msg}\n-/\n#guard_msgs in\n{command}\n"
+            for command, msg in zip(commands, msgs)]
 
 
 def main():
@@ -196,10 +235,18 @@ def main():
                 doc += f"\n/--\ninfo: {m}\n-/\n#guard_msgs in\n#print axioms {name}\n"
             else:
                 doc += f"\n/-- info: {m} -/\n#guard_msgs in\n#print axioms {name}\n"
-    doc += INVENTORY
-    doc += guard(imports, "#project_axioms", "axioms declared in the project")
-    doc += SURFACE
-    doc += guard(imports, "#surface " + " ".join(names), "Dahlias.")
+    main_names = [n for _, l in MAIN for n in l]
+    if not set(main_names) <= set(names):
+        sys.exit("a main result is not in SECTIONS")
+    reading = MAIN + [("All main results", main_names)]
+    inventory, surface, *lists = guards(
+        imports,
+        ["#project_axioms", "#surface " + " ".join(names)]
+        + ["#reading " + " ".join(l) for _, l in reading],
+        ("axioms declared in the project", "Dahlias.", "Dahlias: "))
+    doc += INVENTORY + inventory + SURFACE + surface + READING
+    for (title, _), text in zip(reading, lists):
+        doc += f"\n/-! ### {title} -/\n" + text
     sys.stdout.write(doc)
 
 

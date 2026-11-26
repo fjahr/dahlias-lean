@@ -52,14 +52,6 @@ theorem matchIdxs_congr {pubs pubs' : List (PubNonce E)}
   refine List.filter_congr fun j _ => ?_
   rw [← List.getElem?_map, ← List.getElem?_map, h]
 
-omit [DecidableEq X] [DecidableEq M] in
-theorem evenLift_eq_of_x {P P' : E} (hP : P ≠ 0) (hP' : P' ≠ 0) (h : C.x P = C.x P') :
-    evenLift C P = evenLift C P' := by
-  have h1 := liftX_x_signOf C hP
-  have h2 := liftX_x_signOf C hP'
-  rw [h, h2] at h1
-  exact (Option.some.inj h1).symm
-
 /-! ## Equal inputs, equal queries -/
 
 variable (x : ZMod n) (nonces : Fin qs → SecNonce n)

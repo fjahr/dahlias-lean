@@ -69,12 +69,6 @@ def withVerifier (coins : Coins) :
     QTree (SigIn N X M) (ZMod n) (List (X × M) × List (X × M) × (X × ZMod n)) :=
   A coins >>= fun out => (queryAll (ptsOf N out) : QTree _ _ Unit) >>= fun _ => .done out
 
-theorem eval_withVerifier (T : SigIn N X M → ZMod n) (coins : Coins) :
-    eval T (withVerifier N A coins) = eval T (A coins) := by
-  unfold withVerifier
-  rw [eval_bind, eval_bind]
-  rfl
-
 theorem length_ptsOf (out : List (X × M) × List (X × M) × (X × ZMod n)) :
     (ptsOf N out).length ≤ 2 * N := by
   unfold ptsOf keysOf

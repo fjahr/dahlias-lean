@@ -65,22 +65,6 @@ theorem nodup_flog (T : D → S) {l : List D} (hl : l.Nodup) (t : QTree D S α) 
 theorem nodup_fresh (T : D → S) (t : QTree D S α) : (fresh T t).Nodup :=
   nodup_flog T List.nodup_nil t
 
-/-- A point that is never queried does not matter. -/
-theorem eval_flog_update (T : D → S) (x : D) (s : S) (l : List D) (t : QTree D S α)
-    (hx : x ∉ flog T l t) :
-    eval (update T x s) t = eval T t ∧ flog (update T x s) l t = flog T l t := by
-  induction t generalizing l with
-  | done a => exact ⟨rfl, rfl⟩
-  | ask d f ih =>
-    have hd : d ≠ x := by
-      rintro rfl
-      refine hx ((prefix_flog T _ (f (T d))).subset ?_)
-      split_ifs with h
-      · exact h
-      · simp
-    simp only [eval, flog, update_of_ne hd]
-    exact ih (T d) _ hx
-
 /-- **The `j`-th fresh query does not depend on the value at the `j`-th fresh
 query.** -/
 theorem flog_update (T : D → S) (x : D) (s : S) {l : List D} (hl : l.Nodup) (hxl : x ∉ l)
@@ -161,11 +145,6 @@ theorem fresh_update (T : D → S) (x : D) (s : S) (t : QTree D S α) {j : ℕ}
     (hj : (fresh T t)[j]? = some x) : (fresh (update T x s) t)[j]? = some x :=
   flog_update T x s List.nodup_nil (by simp) t hj
 
-/-- A point outside the fresh queries does not matter. -/
-theorem eval_update (T : D → S) (x : D) (s : S) (t : QTree D S α) (hx : x ∉ fresh T t) :
-    eval (update T x s) t = eval T t :=
-  (eval_flog_update T x s [] t hx).1
-
 /-! ## Sequential composition -/
 
 variable {β : Type}
@@ -205,9 +184,6 @@ theorem length_flog_ask_done (T : D → S) (l : List D) (d : D) (g : S → α) :
 def queryAll : List D → QTree D S Unit
   | [] => .done ()
   | d :: l => .ask d fun _ => queryAll l
-
-omit [DecidableEq D] in
-theorem eval_queryAll (T : D → S) (l : List D) : eval T (queryAll l : QTree D S Unit) = () := rfl
 
 theorem length_flog_queryAll (T : D → S) (l l' : List D) :
     (flog T l (queryAll l' : QTree D S Unit)).length ≤ l.length + l'.length := by

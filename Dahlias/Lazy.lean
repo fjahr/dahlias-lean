@@ -119,18 +119,6 @@ theorem flog_mapTree (ψ : S₂ → S) (T : D → S₂) (l : List D) (t : QTree 
   | done a => rfl
   | ask d f ih => exact ih _ _
 
-omit [DecidableEq D] in
-theorem mapTree_bind (ψ : S₂ → S) (t : QTree D S α) (g : α → QTree D S β) :
-    mapTree ψ (t >>= g) = mapTree ψ t >>= fun a => mapTree ψ (g a) := by
-  induction t with
-  | done a => rfl
-  | ask d f ih =>
-    change Alg.ask d (fun s => mapTree ψ (f (ψ s) >>= g)) =
-      Alg.ask d fun s => mapTree ψ (f (ψ s)) >>= fun a => mapTree ψ (g a)
-    congr 1
-    funext s
-    exact ih _
-
 theorem memo_map (ψ : S₂ → S) (μ : List (D × S₂)) (d : D) :
     memo (μ.map fun p => (p.1, ψ p.2)) d = (memo μ d).map ψ := by
   unfold memo

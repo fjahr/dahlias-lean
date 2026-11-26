@@ -8,7 +8,9 @@
 #   nothing but imports and guarded commands,
 # - the statements printed in REVIEW.md match the sources, and
 #   Dahlias/Summary.lean checks the axioms of every result that REVIEW.md
-#   prints or the README lists.
+#   prints or the README lists,
+# - the generated parts of REVIEW.md are what scripts/gen_review.py prints,
+#   and REVIEW.md prints the statement of every main result.
 # scripts/check_selftest.sh checks that these checks fail when they should.
 set -eu
 cd "$(dirname "$0")/.."
@@ -50,13 +52,13 @@ for line in pathlib.Path('Dahlias.lean').read_text().split('\n'):
 # The generated summary: outside of comments only imports and guarded commands.
 allowed = re.compile(r"import Dahlias(\.[A-Za-z0-9_]+)+|set_option linter\.style\.longLine false|"
                      r"#guard_msgs in|#print axioms [A-Za-z0-9_.']+|#project_axioms|"
-                     r"#surface( [A-Za-z0-9_.']+)+")
+                     r"#(surface|reading)( [A-Za-z0-9_.']+)+")
 summary = re.sub(r'/-.*?-/', '', pathlib.Path('Dahlias/Summary.lean').read_text(), flags=re.S)
 for line in summary.split('\n'):
     if line.strip() and not allowed.fullmatch(line):
         print('error: Dahlias/Summary.lean has an unexpected line: ' + line)
         bad = 1
-for command in ('#project_axioms', '#surface '):
+for command in ('#project_axioms', '#surface ', '#reading '):
     if ('#guard_msgs in\n' + command) not in summary:
         print('error: Dahlias/Summary.lean does not guard ' + command.strip())
         bad = 1
@@ -73,10 +75,10 @@ for block in re.findall(r'```lean\n(.*?)\n```', pathlib.Path('REVIEW.md').read_t
         bad = 1
 sys.exit(bad)
 EOF
-# The generated part of REVIEW.md must be what scripts/gen_review.py prints.
+# The generated parts of REVIEW.md must be what scripts/gen_review.py prints.
 python3 scripts/gen_review.py --check || fail=1
 # Dahlias/Summary.lean must check the axioms of every theorem printed in
-# REVIEW.md and of every result in the README's table. A result is found by
+# REVIEW.md and of every result in the README's tables. A result is found by
 # its full name: a declaration with the same last name in another namespace
 # does not count.
 python3 - <<'EOF' || fail=1
@@ -111,6 +113,7 @@ names = [full for l in decls.values() for full, _ in l]
 checked = set(re.findall(r'^#print axioms (\S+)', pathlib.Path('Dahlias/Summary.lean').read_text(),
                          re.M))
 bad = 0
+printed = set()
 # The theorems that REVIEW.md prints, with the namespace they have in the sources.
 for block in re.findall(r'```lean\n(.*?)\n```', pathlib.Path('REVIEW.md').read_text(), re.S):
     for m in re.finditer(r'^(?:theorem|lemma)\s+', block, re.M):
@@ -127,7 +130,13 @@ for block in re.findall(r'```lean\n(.*?)\n```', pathlib.Path('REVIEW.md').read_t
             print('error: Dahlias/Summary.lean does not check the axioms of the printed theorem at: '
                   + block[m.start():].split('\n')[0][:80])
             bad = 1
-# The results in the README's table. Two of its names are two declarations each
+        printed.update(full)
+# REVIEW.md prints the statement of every main result.
+main = re.findall(r'^#reading (.*)$', pathlib.Path('Dahlias/Summary.lean').read_text(), re.M)
+for name in sorted({name for line in main for name in line.split()} - printed):
+    print('error: REVIEW.md does not print the statement of the main result ' + name)
+    bad = 1
+# The results in the README's tables. Two of the names are two declarations each
 # (`verify_honest`, `localFork_prob`), so every declaration with a listed name
 # must be checked.
 table = pathlib.Path('README.md').read_text().split('## Results')[1].split('\n## ')[0]

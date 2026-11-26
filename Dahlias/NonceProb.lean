@@ -5,8 +5,6 @@ import Dahlias.Lazy
 
 The counting facts behind the analysis of `NonceGen` (`Dahlias.NonceGen`):
 
-* `sum_swapAt`: the entries of a uniform table at distinct points are
-  independent uniform values, and the rest of the table stays uniform.
 * `prob_section`: a value derived from a uniform `w : W` is uniform on `U`
   up to the fraction of `W` outside a copy of `U`.
 * `prob_hit` and `prob_not_injective`: independent uniform values rarely hit a
@@ -173,13 +171,6 @@ theorem swapAt_involutive {p : ι → D} (hp : Injective p) :
       rw [overwrite_of_ne _ _ h, overwrite_of_ne _ _ h]
   · funext i
     exact overwrite_apply hp _ _ i
-
-/-- **The entries of a uniform table at distinct points are independent
-uniform values**, and the table without them stays uniform. -/
-theorem sum_swapAt [Fintype D] [DecidableEq D] [Fintype ι] [DecidableEq ι] [Fintype W]
-    {p : ι → D} (hp : Injective p) (f : (D → W) × (ι → W) → ℝ) :
-    ∑ x, f (swapAt p x) = ∑ x, f x :=
-  Equiv.sum_comp (Involutive.toPerm _ (swapAt_involutive hp)) f
 
 end Overwrite
 

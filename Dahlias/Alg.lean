@@ -32,17 +32,12 @@ instance : Monad (Alg Q R) where
   pure := done
   bind := bind
 
-/-- A single query. -/
-def query (q : Q) : Alg Q R (R q) := ask q done
-
 @[simp] theorem pure_eq (a : α) : (pure a : Alg Q R α) = done a := rfl
 
 @[simp] theorem done_bind (a : α) (g : α → Alg Q R β) : (done a : Alg Q R α) >>= g = g a := rfl
 
 @[simp] theorem ask_bind (q : Q) (f : R q → Alg Q R α) (g : α → Alg Q R β) :
     ask q f >>= g = ask q fun r => f r >>= g := rfl
-
-@[simp] theorem query_bind (q : Q) (g : R q → Alg Q R β) : query q >>= g = ask q g := rfl
 
 /-- Run with a stateful handler for the queries. -/
 def run (h : (q : Q) → σ → R q × σ) : Alg Q R α → σ → α × σ

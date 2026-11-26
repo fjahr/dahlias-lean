@@ -115,6 +115,4 @@ def secp256k1B : Curve n Point Bytes where
     refine ⟨h1, h2, ?_⟩
     rw [xbytes, h3, ZMod.val_natCast_of_lt hr.2, bytes32_toNatBE hr.1]
 
-theorem secp256k1B_ops : secp256k1B.ops = specOps := rfl
-
 end Dahlias.Bytes
