@@ -29,8 +29,8 @@ trust about the security theorem is in this file and in `Dahlias.Basic`.
 
 ## The game (`forgeExperiment`)
 
-This is the paper's co-EUF-CMA-TK game (ePrint 2025/692, Fig. 4 in the
-revision of 2025-04-16) for the algorithms of BIP 459, with two differences
+This is the paper's co-EUF-CMA-TK game (ePrint 2025/692, Fig. 5 in the
+revision of 2026-05-09) for the algorithms of BIP 459, with two differences
 and one addition that are explained below.
 
 The honest signer has a secret key `x ≠ 0`. The adversary gets the point
