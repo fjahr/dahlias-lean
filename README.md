@@ -4,7 +4,7 @@ Lean 4 proofs about [BIP 459](https://github.com/bitcoin/bips/blob/master/bip-04
 
 The main result is a machine-checked version of Theorem 2 of the [DahLIAS paper](https://eprint.iacr.org/2025/692) for the algorithms of BIP 459: the scheme is unforgeable in the concurrent setting with key tweaking, under the algebraic one-more discrete logarithm assumption (AOMDL), with the challenge hash as a random oracle and a collision resistant nonce coefficient hash. Theorem 3 of the paper, strong binding, is proven as well.
 
-`REVIEW.md` says what to read to check that the statements mean what they should.
+`REVIEW.md` says what to read to check that the statements mean what they should, and has the paper's statements next to the Lean ones. `FINDINGS.md` lists what the work found in the BIP, its test vectors, the reference code and the C module.
 
 ## Results
 
@@ -42,6 +42,7 @@ The same theorems for secp256k1, for other models of the AOMDL game, of the chal
 | --- | --- | --- |
 | `verify_signSingle`, `sigAgg_eq_signSingle`, `challenger_single`, `forgeAdvantage_le_derived` | `Dahlias/Single.lean`, `Dahlias/SingleGame.lean`, `Dahlias/Derived.lean` | Signing by a single party that holds all keys, with one nonce: the output verifies and equals the protocol's signature for the same nonce `R`. The unforgeability game offers these signatures to the adversary, and `unforgeable_sqrt` covers them. |
 | `tweakPK_mulG`, `tweakSK_affine`, `Tweak.sk_comp` | `Dahlias/Correctness.lean`, `Dahlias/Tweaks.lean` | `TweakSK` and `TweakPK` agree, and BIP 459's tweaks are tweaks of the security game. A sequence of tweaks is one tweak. |
+| `Tweak.xonly_neg`, `sign_neg`, `challengerG_close_neg`, `not_collisionExtractable` | `Dahlias/Tweaks.lean` | Why the game records tweaked keys where the paper records tweaks. The tweaks `(α, β)` and `(-α, -β)` give the same x-only key and the same partial signatures, and the signer of the game answers both in the same way. So no function computes the secret key from two tweaks with the same tweaked key, which the paper's proof assumes of its tweaking scheme. |
 | `verify_sigAgg_of_partialSigVerify` | `Dahlias/Correctness.lean` | Partial signatures that pass `PartialSigVerify` aggregate to a valid signature. |
 | `grinder_advantage`, `grinder_advantage_ge` | `Dahlias/Tightness.lean` | The additive term of the bound is needed. A forger with `q` random oracle queries and no signing queries wins with probability at least `1 - ((n - 1) / n)^q`, which is at least `q / (n + q)`. |
 | `guesser_hashBound`, `guesser_advantage_pos` | `Dahlias/Examples.lean` | The game can be won, so the bound is not empty. A forger that guesses the secret key makes one random oracle query and wins with positive probability. |

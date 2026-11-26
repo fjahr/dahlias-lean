@@ -29,9 +29,9 @@ trust about the security theorem is in this file and in `Dahlias.Basic`.
 
 ## The game (`forgeExperiment`)
 
-This is the paper's co-EUF-CMA-TK game (ePrint 2025/692, Fig. 5) for the
-algorithms of BIP 459, with two differences and one addition that are
-explained below.
+This is the paper's co-EUF-CMA-TK game (ePrint 2025/692, Fig. 4 in the
+revision of 2025-04-16) for the algorithms of BIP 459, with two differences
+and one addition that are explained below.
 
 The honest signer has a secret key `x ≠ 0`. The adversary gets the point
 `x⋅G` and may
@@ -63,6 +63,8 @@ with `(L, τ, m)` unrecorded. Its proof needs that two different tweaks with
 the same tweaked key reveal the secret key. For x-only keys that is false:
 `(α, β)` and `(-α, -β)` give the same x-only key and the same signatures. The
 game here records `(L, pk̃, m)` with `pk̃` the tweaked x-only key.
+`Dahlias.Tweaks` proves these facts (`Tweak.xonly_neg`, `sign_neg`,
+`challengerG_close_neg`, `not_collisionExtractable`).
 
 **Addition: single-party signatures.** The paper and BIP 459 do not say how a
 party that holds all keys of a list signs without running the protocol with

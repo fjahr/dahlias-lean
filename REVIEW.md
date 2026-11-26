@@ -70,9 +70,9 @@ The model was compared with BIP 459 at bitcoin/bips commit [`f3d1668`](https://g
 
 ## Questions to ask
 
-**Is the game the paper's?** `forgeExperiment` is the co-EUF-CMA-TK game of the DahLIAS paper (Fig. 5) with two changes and one addition. All three are described in the header of `Dahlias/Security.lean`.
+**Is the game the paper's?** `forgeExperiment` is the co-EUF-CMA-TK game of the DahLIAS paper with two changes and one addition. All three are described in the header of `Dahlias/Security.lean`, and [The paper's statements](#the-papers-statements) has them next to the paper's definitions.
 
-- The game records the tweaked x-only public key of every signature, where the paper records the tweak. With x-only keys two different tweaks can give the same key without revealing anything: `(α, β)` and `(-α, -β)` always do. The paper's game would count a signature under one of them as a forgery under the other.
+- The game records the tweaked x-only public key of every signature, where the paper records the tweak. With x-only keys two different tweaks can give the same key without revealing anything: `(α, β)` and `(-α, -β)` always do (`Tweak.xonly_neg`). The signer answers a query with one as it answers the query with the other (`challengerG_close_neg`), so the paper's game would count a signature under one of them as a forgery under the other. The paper's proof needs that two such tweaks reveal the secret key, which cannot hold here (`not_collisionExtractable`).
 - A `Sign` call that fails leaves the session open. The paper closes it. The adversary here has more freedom.
 - The adversary may also ask for single-party signatures: the honest signer signs a list of its own tweaked keys with one uniform nonce (`signSingle`, `challenger_single`). This is not in the paper. Sessions and single-party signatures share the `qs` nonce slots. `challengerG true` is a variant of the game that only the proof uses. The statements a reader has to trust are about `challenger`, which is `challengerG false`.
 
@@ -90,7 +90,7 @@ The model was compared with BIP 459 at bitcoin/bips commit [`f3d1668`](https://g
 
 **Is the theorem vacuous?** `Dahlias/Examples.lean` has a forger that satisfies `HashBound` and wins with positive probability. `Dahlias/Secp256k1.lean` instantiates the theorem for secp256k1.
 
-**Is the binding game the paper's?** `bindExperiment` is the game of Fig. 11 with the random oracle of the unforgeability game: the adversary outputs two lists and one signature and wins if the lists differ and the signature verifies for both. The theorem counts the adversary's own oracle queries. The `2N` in the bound are the verifier's queries. It holds for groups of prime order, and `secp256k1_primeOrder` proves that secp256k1 is one.
+**Is the binding game the paper's?** `bindExperiment` is the paper's game SB with the random oracle of the unforgeability game: the adversary outputs two lists and one signature and wins if the lists differ and the signature verifies for both. The theorem counts the adversary's own oracle queries. The `2N` in the bound are the verifier's queries. It holds for groups of prime order, and `secp256k1_primeOrder` proves that secp256k1 is one.
 
 **Is the AOMDL game the usual one?** The game of `Dahlias/Security.lean` draws the discrete logarithms of its challenges from the nonzero scalars, because the challenges stand for the secret key and the nonces, which are nonzero. The usual game draws them from all scalars. `Dahlias/OmdlStd.lean` has that game. `omdlAdvantage_le_std` shows that an adversary's advantages in the two differ by at most `c / n` for `c` challenges, and `unforgeable_sqrt_std` is the main theorem with the usual game: the reduction's `2⋅qs + 1` challenges add `(2⋅qs + 1) / n` next to its advantage.
 
@@ -123,6 +123,26 @@ What BIP 459 says about correctness and security, and the theorem for it.
 | Security: proven under AOMDL in the concurrent setting with key tweaking, with `hash_BIP0459/sig` as a random oracle and a collision resistant `hash_BIP0459/noncecoef`. | `unforgeable`, `unforgeable_sqrt`. `bytes_unforgeable_256` is the statement for secp256k1 with 32-byte keys and messages, the BIP's nonce coefficient hash, and a 256-bit random oracle reduced modulo `n`. `bytes_nonceGenSk_unforgeable_256` is that statement with the nonces of `NonceGen`. |
 | Security, footnote: strong binding needs public keys other than the point at infinity, which `lift_x` guarantees. | `verify` fails unless every key lifts, and `strongly_binding` uses that. |
 | The pseudocode of `Sign`, `Verify` and the other algorithms. | `Dahlias/Basic.lean` and `Dahlias/Bytes.lean` are transcriptions. No theorem says they are BIP 459's algorithms. The 60 test vectors and the differential tests against `reference.py` and libsecp256k1 compare them. |
+
+## The paper's statements
+
+The definitions and theorems of the DahLIAS paper next to the Lean ones. Page and figure numbers are those of the ePrint revision of 2025-04-16 ([2025/692](https://eprint.iacr.org/2025/692)). Later revisions may number them differently.
+
+| Paper | Lean | Difference |
+|---|---|---|
+| The scheme, Fig. 6 (p. 19). Public keys and the nonce `R` are group elements. | `Dahlias/Basic.lean`, the algorithms of BIP 459 | Public keys and `R` are x-only, so `Sign` and `Verify` normalize to even y-coordinates. The paper draws the nonces from all scalars, and BIP 459's `Sign` fails on a zero nonce. |
+| Correctness, Section 4.1 (p. 20): the scheme is `N²/2^λ`-correct. | `verify_honest` | Covered in part. If no signer's `Sign` fails, the signature verifies. No theorem bounds the probability that an honest `Sign` fails. |
+| AOMDL game, Fig. 1 (p. 11). The challenges have nonzero discrete logarithms, and the adversary wins with fewer `ADLog` queries than challenges. | `omdlExperiment` | The same game, with at most `c` challenges. `unforgeable_sqrt_std` is the theorem for challenges with uniform discrete logarithms. |
+| Collision resistance of `H_non`, Definition 2 (p. 11), for a keyed family. | `collisionAdvantage` with `collider` | `nonceCoef` is one fixed function. The theorem measures how often an explicit algorithm finds a collision of it. |
+| Tweaking schemes, Definition 5 and Lemma 1 (p. 21). A tweak is `(α, β)` with `β ≠ 0`, and `TweakPK(X, (α, β)) = g^α⋅X^β`. | `Tweak`, `Tweak.sk`, `tweakSK_affine` | The same tweaks, with x-only tweaked keys. Property P-3 of Definition 5, that two different tweaks with the same tweaked key reveal the secret key, does not hold for them (`not_collisionExtractable`). |
+| Game co-EUF-CMA-TK, Fig. 4 (p. 17). | `forgeExperiment` | The game records `(L, pk̃, m)` with the tweaked x-only key, where the paper records `(L, τ, m)`. The signer cannot tell `τ` from `τ.neg` (`challengerG_close_neg`), so in the paper's game a signature under one would be a forgery under the other. A `Sign` call that fails leaves the session open and records nothing, where the paper closes the session and records the query. The adversary may also ask for single-party signatures (`challenger_single`). The game bounds the lists by `N`, which the paper does in the theorem. |
+| Random oracle `H_sig`. | A uniform table of scalars on the inputs with lists of at most `N` entries | `forgeAdvantage_eq_lazy` is the lazily sampled form, and `unforgeable_sqrt_fin` has hash outputs that are reduced modulo `n`. |
+| Local forking lemma, Lemma 2 (p. 22): `fork ≥ acc⋅(acc/q − 1/s)` for an oracle with at least `s` values. | `localFork_prob` | The same bound, for deterministic query algorithms and a uniform table. |
+| Theorem 2 (p. 28). Its proof ends with `aomdl ≥ adv⋅(adv/q − 1/2^(λ−1)) − coll` (p. 33). | `unforgeable` | The same inequality with `1/n` for `1/2^(λ−1)`, for adversaries without single-party queries. Here `q = qh + qs + 1`. The paper's `q` counts the hash queries of its wrapped adversary, at most `qh + qs + N`. |
+| Theorem 2, the bound: `adv ≤ √q⋅(aomdl + coll + 1/2^(λ−1))^(1/2)`. | `unforgeable_sqrt`: `adv ≤ sqrt(q⋅(omdl + coll)) + q/n + qs/(n − 1)` | Both follow from the inequality above. The term `qs/(n − 1)` pays for the single-party signatures. |
+| Theorem 2, the resources. `C` makes at most `2qs` `ADLog` queries and runs in time `2t_A + (6qs + 2N + 2)⋅t_exp`. `D` runs in time `2t_A + (8qs + 2N + 3)⋅t_exp`. | `reduction`, `collider` | The query count is covered: `reduction` gets `2qs + 1` challenges and wins only with fewer queries. Running time is not covered. `reductionLazy` and `colliderLazy` show that neither algorithm needs a table of exponential size. |
+| The insecure variant of the check in `Sign'`, Section 4.2 (p. 20) and Appendix B. | `ros_forgery` | The attack for `ℓ ≥ log₂ n` sessions, at the level of the signer's answers. |
+| Game SB, Fig. 10, and Theorem 3 (p. 33): `adv ≤ qh²/2^λ`. | `bindExperiment`, `strongly_binding`: `adv ≤ (qh + 2N)²/n` | The Lean bound counts the `2N` oracle values that the verifier reads. |
 
 ## What the theorems do not say
 
@@ -922,7 +942,7 @@ The definitions of the project that the statements of the results in `Dahlias/Su
 - `Dahlias/Security.lean`: `Security.AdvQ`, `Security.AdvR`, `Security.Adversary`, `Security.BList`, `Security.ForgeSample`, `Security.Forgery`, `Security.HashBound`, `Security.OmdlAdversary`, `Security.OmdlQ`, `Security.OmdlR`, `Security.SigIn`, `Security.SignerState`, `Security.Tweak`, `Security.Wins`, `Security.chalLogs`, `Security.challenger`, `Security.challengerG`, `Security.forgeAdvantage`, `Security.forgeAdvantageG`, `Security.forgeExperimentG`, `Security.hashesOf`, `Security.omdlAdvantage`, `Security.omdlChallenger`, `Security.omdlExperiment`, `Security.singleKeys`, `Security.singleNcIn`, `Security.singleNonce`, `Security.singleS`, `Security.Tweak.sk`
 - `Dahlias/Single.lean`: `signSingle`, `singleList`
 - `Dahlias/Tightness.lean`: `Security.grindAlg`, `Security.grindIn`, `Security.grindOut`, `Security.grinder`
-- `Dahlias/Tweaks.lean`: `Security.bipTweakSign`, `Security.Tweak.comp`
+- `Dahlias/Tweaks.lean`: `Security.bipTweakSign`, `Security.Tweak.comp`, `Security.Tweak.neg`
 - `Dahlias/Unforgeability.lean`: `Security.NoSingle`, `Security.collisionAdvantage`, `Security.instFintypeProdForallSigInZMod`
 - `Dahlias/VectorData.lean`: `Vectors.nonceAggRows`, `Vectors.nonceGenRows`, `Vectors.partialSigVerifyRows`, `Vectors.signErrorRows`, `Vectors.signRows`, `Vectors.tweakRows`, `Vectors.verifyRows`
 - `Dahlias/Vectors.lean`: `Vectors.checkNonceAgg`, `Vectors.checkNonceGen`, `Vectors.checkPartialSigVerify`, `Vectors.checkSign`, `Vectors.checkSignError`, `Vectors.checkTweak`, `Vectors.checkVerify`, `Vectors.hexList`, `Vectors.optHex`
